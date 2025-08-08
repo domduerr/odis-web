@@ -1,0 +1,28 @@
+[package]
+name = "leptos-tutorial"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+leptos = { version = "0.7.7", features = ["csr"] }
+web-sys = { version = "0.3.77", features = [
+    "SubmitEvent",
+    "MouseEvent",
+    "SvgElement",
+    "FileList",
+    "File",
+    "Blob",
+    "Url",
+    "DomRect",
+    "XmlSerializer",
+    "Node",
+    "HtmlElement",
+    "HtmlAnchorElement",
+    "BlobPropertyBag",
+] }
+leptos-use = { version = "0.15.10", features = ["use_draggable"] }
+wasm-bindgen-futures = "0.4.50"
+odis = { path = "/Users/Admin/Desktop/odis" }
+bit-set = "0.8.0"
+rust-sugiyama = "0.3.0"
