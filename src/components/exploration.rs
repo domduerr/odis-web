@@ -54,7 +54,7 @@ pub fn ExplorationComp(
                 if temp_set.get() == (0..context.get().attributes.len()).collect() {
                     show_finished.set("block");
                 }
-        }>"Start exploration"</button>
+        }>"Start Exploration"</button>
 
         <div
             style:opacity="0.6"

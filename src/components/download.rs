@@ -51,7 +51,7 @@ pub fn DownloadComp(context: RwSignal<FormalContext<String>>) -> impl IntoView {
             link.get().unwrap().set_download(&name);
             link.get().unwrap().set_href(&url);
             link.get().unwrap().click();
-        }>"Download context"</button>
+        }>"Download Context"</button>
         <a
             node_ref=link
             style="display: none"

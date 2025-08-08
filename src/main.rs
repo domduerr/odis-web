@@ -49,7 +49,7 @@ pub fn App() -> impl IntoView {
     };
 
     view! {
-        <h1>"Concept explorer"</h1>
+        <h1>"Odis Web"</h1>
 
         <form on:submit=on_submit style:display="inline" style:padding-right="20px">
             <input type="file" node_ref=input_element/>

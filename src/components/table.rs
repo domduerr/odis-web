@@ -239,19 +239,19 @@ pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoV
         <DownloadComp context=context/>
         <br/><br/><br/>
 
-        <button on:click=add_object>"Add object"</button>
+        <button on:click=add_object>"Add Object"</button>
         <button
             on:click=remove_object
             on:mouseover=move |_| {delete_hover_obj.set(true)}
             on:mouseout=move |_| {delete_hover_obj.set(false)}
-        >"Remove object"</button>
+        >"Remove Object"</button>
         <br/><br/>
-        <button on:click=add_attribute>"Add attribute"</button>
+        <button on:click=add_attribute>"Add Attribute"</button>
         <button
             on:click=remove_attribute
             on:mouseover=move |_| {delete_hover_attr.set(true)}
             on:mouseout=move |_| {delete_hover_attr.set(false)}
-        >"Remove attribute"</button>
+        >"Remove Attribute"</button>
         <br/><br/>
 
         <table
@@ -344,7 +344,7 @@ pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoV
         <br/>
         <div style:display="flex">
             <div style:min-width="200px" style:max-width="40%">
-                <button on:click=calc_concepts>"Calculate concepts"</button>
+                <button on:click=calc_concepts>"Compute Concepts"</button>
                 {move || {
                     if let Some(n) = concepts.get() {
                         let concepts_clone: Vec<(usize, (BitSet, BitSet))> = concepts.get().unwrap().into_iter().enumerate().collect();
@@ -414,7 +414,7 @@ pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoV
                 }}
             </div>
             <div style:min-width="200px" style:max-width="40%">
-                <button on:click=calc_basis>"Calculate basis"</button>
+                <button on:click=calc_basis>"Compute Canonical Base"</button>
                 {move || {
                     if let Some(n) = basis.get() {
                         let basis_clone: Vec<(usize, (BitSet, BitSet))> = basis.get().unwrap().into_iter().enumerate().collect();
@@ -497,7 +497,7 @@ pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoV
         <button on:click=move |_| {
             calc_concepts(MouseEvent::new("click").unwrap());
             concept_lattice.set(true);
-        }>"Draw concept lattice"</button>
+        }>"Draw Concept Lattice"</button>
         {move || {
             if concept_lattice.get() {
                 Either::Left(view! {

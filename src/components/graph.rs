@@ -51,7 +51,7 @@ pub fn GraphComp(concepts: Vec<(BitSet, BitSet)>, context: FormalContext<String>
     if let Some(n) = graph_option {
         graph = n;
     } else {
-        error = "Cannot draw graph from singular concept.";
+        error = "Cannot draw concept lattice from singular concept.";
     }
 
     let width_node_ref: NodeRef<leptos::html::Input> = NodeRef::new();
@@ -154,7 +154,7 @@ pub fn GraphComp(concepts: Vec<(BitSet, BitSet)>, context: FormalContext<String>
                 style:font-family="monospace"
                 style:font-size="18px"
                 style:white-space="pre"
-            >"Control width of graph:  "</label>
+            >"Width of concept lattice:  "</label>
             <input
                 node_ref=width_node_ref
                 type="range"
@@ -178,7 +178,7 @@ pub fn GraphComp(concepts: Vec<(BitSet, BitSet)>, context: FormalContext<String>
                 style:font-family="monospace"
                 style:font-size="18px"
                 style:white-space="pre"
-            >"Control height of graph: "</label>
+            >"Height of concept lattice: "</label>
             <input
                 node_ref=height_node_ref
                 type="range"

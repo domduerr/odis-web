@@ -23,6 +23,6 @@ web-sys = { version = "0.3.77", features = [
 ] }
 leptos-use = { version = "0.15.10", features = ["use_draggable"] }
 wasm-bindgen-futures = "0.4.50"
-odis = { path = "/Users/Admin/Desktop/odis" }
+odis = { path = "../odis" }
 bit-set = "0.8.0"
 rust-sugiyama = "0.3.0"
