@@ -12,7 +12,7 @@ use crate::components::{
 #[derive(Clone, Debug)]
 pub struct Node {
     pub id: usize,
-    pub label: (Option<String>, Option<String>),
+    pub label: (Option<Vec<String>>, Option<Vec<String>>),
     pub x: f64,
     pub y: f64,
     pub x_signal: RwSignal<f64>,
@@ -24,12 +24,18 @@ pub struct Dimensions {
     pub width: f64,
     pub height: f64,
     pub margin: f64,
+    pub node_count_xy: (f64, f64),
     pub radius: f64,
     pub font_size: u8,
 }
 
 impl Node {
-    pub fn new(id: usize, label: (Option<String>, Option<String>), x: f64, y: f64) -> Self {
+    pub fn new(
+        id: usize,
+        label: (Option<Vec<String>>, Option<Vec<String>>),
+        x: f64,
+        y: f64,
+    ) -> Self {
         Node {
             id,
             label,
@@ -61,6 +67,7 @@ pub fn GraphComp(concepts: Vec<(BitSet, BitSet)>, context: FormalContext<String>
         width: 600.0,
         height: 600.0,
         margin: 70.0,
+        node_count_xy: (1.0, 1.0),
         radius: 8.0,
         font_size: 16,
     });
@@ -75,6 +82,8 @@ pub fn GraphComp(concepts: Vec<(BitSet, BitSet)>, context: FormalContext<String>
             y_max = node.y as f64;
         }
     }
+
+    dimensions.update(|dim| dim.node_count_xy = (x_max, y_max));
 
     let mut x_not_zero = false;
     if x_max > 0.0 {
@@ -105,10 +114,10 @@ pub fn GraphComp(concepts: Vec<(BitSet, BitSet)>, context: FormalContext<String>
     });
 
     Effect::new(move || {
-        let dimensions = dimensions.get();
+        let dim = dimensions.get();
 
-        let x_coef = (dimensions.width - 2.0 * dimensions.margin) / x_max;
-        let y_coef = (dimensions.height - 2.0 * dimensions.margin) / y_max;
+        let x_coef = (dim.width - 2.0 * dim.margin) / x_max;
+        let y_coef = (dim.height - 2.0 * dim.margin) / y_max;
 
         if x_not_zero {
             nodes.set(
@@ -119,8 +128,8 @@ pub fn GraphComp(concepts: Vec<(BitSet, BitSet)>, context: FormalContext<String>
                         Node::new(
                             node.id,
                             node.label.clone(),
-                            node.x as f64 * x_coef + dimensions.margin,
-                            node.y as f64 * y_coef + dimensions.margin,
+                            node.x as f64 * x_coef + dim.margin,
+                            node.y as f64 * y_coef + dim.margin,
                         )
                     })
                     .collect(),
@@ -134,8 +143,8 @@ pub fn GraphComp(concepts: Vec<(BitSet, BitSet)>, context: FormalContext<String>
                         Node::new(
                             node.id,
                             node.label.clone(),
-                            dimensions.width / 2.0,
-                            node.y as f64 * y_coef + dimensions.margin,
+                            dim.width / 2.0,
+                            node.y as f64 * y_coef + dim.margin,
                         )
                     })
                     .collect(),
@@ -256,13 +265,11 @@ pub fn GraphComp(concepts: Vec<(BitSet, BitSet)>, context: FormalContext<String>
                         view! {
                             <rect width="100%" height="100%" x="0" y="0" fill="white" stroke-width="3" stroke="red"/>
                             <text
-                                font-size=dimensions.get().font_size as f64 * 1.6
-                                dy=".35em"
+                                font-size=dimensions.get().font_size as f64 * 1.2
                                 text-anchor="middle"
-                                stroke-width="0.3em"
                                 font-family="monospace"
-                                x=dimensions.get().height / 2.0
-                                y=dimensions.get().width / 2.0
+                                x=dimensions.get().width / 2.0
+                                y=dimensions.get().height / 2.0
                             >{error}</text>
                         }
                     )

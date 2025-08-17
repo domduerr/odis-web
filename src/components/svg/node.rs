@@ -5,6 +5,22 @@ use leptos_use::{
 };
 use web_sys::MouseEvent;
 
+// pub fn format_label(label_vec: Vec<String>, dimensions: &Dimensions) -> String {
+//     // 20px: 11 / 23.04
+//     // 18px: 9.91 / 20.95
+//     // 16px: 8.8 / 18.85
+//     // 14px: 7.7 / 16.06
+//     let font_char_width = 8.8;
+//     let font_char_height = 18.85;
+//     let x_coef = (dimensions.width - 2.0 * dimensions.margin) / dimensions.node_count_xy.0;
+//     let y_coef = (dimensions.height - 2.0 * dimensions.margin) / dimensions.node_count_xy.1;
+//     let max_char_per_line = (x_coef / font_char_width).ceil();
+//     let max_lines = (y_coef / font_char_height).ceil();
+//     leptos::logging::log!("{}", max_char_per_line);
+//     leptos::logging::log!("{}", max_lines);
+//     String::from("value")
+// }
+
 #[component]
 pub fn NodeComp(node: Node, offset: (f64, f64), dimensions: Dimensions) -> impl IntoView {
     let node_ref: NodeRef<leptos::svg::G> = NodeRef::new();
@@ -87,17 +103,20 @@ pub fn NodeComp(node: Node, offset: (f64, f64), dimensions: Dimensions) -> impl 
             // object labels
             <text
                 font-size=dimensions.font_size
-                dy=".35em"
                 text-anchor="middle"
                 stroke="white"
-                stroke-width="0.3em"
+                stroke-width="0.4em"
                 font-family="monospace"
                 x=x_pos
-                y=move || {y_pos() + dimensions.radius * 2.8}
+                y=move || {y_pos() + dimensions.radius * 3.0}
             >{
-                if let Some(obj) = node.label.0.clone() {
-                    let len = obj.len();
-                    let string = "0".to_string().repeat(len);
+                if let Some(obj_vec) = node.label.0.clone() {
+                    let mut len = 0;
+                    len += obj_vec.len() - 1;
+                    for obj in obj_vec {
+                        len += obj.len();
+                    }
+                    let string = "N".to_string().repeat(len);
                     string
                 } else {
                     "".to_string()
@@ -105,16 +124,20 @@ pub fn NodeComp(node: Node, offset: (f64, f64), dimensions: Dimensions) -> impl 
             }</text>
             <text
                 font-size=dimensions.font_size
-                dy=".35em"
                 text-anchor="middle"
                 stroke-width="2"
                 fill="black"
                 font-family="monospace"
                 x=x_pos
-                y=move || {y_pos() + dimensions.radius * 2.8}
+                y=move || {y_pos() + dimensions.radius * 3.0}
             >{
-                if let Some(obj) = node.label.0 {
-                    obj
+                if let Some(obj_vec) = node.label.0 {
+                    let mut obj_string = String::new();
+                    for obj in obj_vec {
+                        obj_string.push_str(&(obj + " "));
+                    }
+                    obj_string.pop();
+                    obj_string
                 } else {
                     "".to_string()
                 }
@@ -126,15 +149,19 @@ pub fn NodeComp(node: Node, offset: (f64, f64), dimensions: Dimensions) -> impl 
                 dy=".35em"
                 text-anchor="middle"
                 stroke="white"
-                stroke-width="0.3em"
+                stroke-width="0.4em"
                 font-style="italic"
                 font-family="monospace"
                 x=x_pos
-                y=move || {y_pos() - dimensions.radius * 2.8}
+                y=move || {y_pos() - dimensions.radius * 3.0}
             >{
-                if let Some(attr) = node.label.1.clone() {
-                    let len = attr.len();
-                    let string = "0".to_string().repeat(len);
+                if let Some(attr_vec) = node.label.1.clone() {
+                    let mut len = 0;
+                    len += attr_vec.len() - 1;
+                    for attr in attr_vec {
+                        len += attr.len();
+                    }
+                    let string = "N".to_string().repeat(len);
                     string
                 } else {
                     "".to_string()
@@ -149,10 +176,15 @@ pub fn NodeComp(node: Node, offset: (f64, f64), dimensions: Dimensions) -> impl 
                 font-style="italic"
                 font-family="monospace"
                 x=x_pos
-                y=move || {y_pos() - dimensions.radius * 2.8}
+                y=move || {y_pos() - dimensions.radius * 3.0}
             >{
-                if let Some(attr) = node.label.1 {
-                    attr
+                if let Some(attr_vec) = node.label.1 {
+                    let mut attr_string = String::new();
+                    for attr in attr_vec {
+                        attr_string.push_str(&(attr + " "));
+                    }
+                    attr_string.pop();
+                    attr_string
                 } else {
                     "".to_string()
                 }
