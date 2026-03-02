@@ -1,3 +1,4 @@
+use leptos::wasm_bindgen::JsCast;
 use leptos::{either::Either, prelude::*};
 
 use bit_set::BitSet;
@@ -6,7 +7,10 @@ use std::collections::HashMap;
 use web_sys::MouseEvent;
 
 use crate::components::{
-    checkbox::CheckboxComp, download::DownloadComp, exploration::ExplorationComp, graph::GraphComp,
+    checkbox::CheckboxComp,
+    download::DownloadComp,
+    exploration::ExplorationComp,
+    graph::{GraphComp, LayoutAlgorithm},
 };
 
 #[derive(Debug, Clone)]
@@ -50,6 +54,7 @@ pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoV
     let concepts = RwSignal::new(None);
     let concept_lattice = RwSignal::new(false);
     let basis = RwSignal::new(None);
+    let layout_algorithm = RwSignal::new(LayoutAlgorithm::Dimdraw);
 
     let focus_pos: RwSignal<(usize, usize)> = RwSignal::new((0, 0));
     let delete_hover_obj = RwSignal::new(false);
@@ -226,12 +231,12 @@ pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoV
     let calc_concepts = move |_| {
         let mut result: Vec<(BitSet, BitSet)> =
             context.read_only().get().fcbo_index_concepts().collect();
-        context.get().sort_lectic_order(&mut result);
+        context.get().index_sort_lectic_order(&mut result);
         concepts.set(Some(result));
     };
 
     let calc_basis = move |_| {
-        let result = context.read_only().get().canonical_basis();
+        let result = context.read_only().get().index_canonical_basis();
         basis.set(Some(result));
     };
 
@@ -239,19 +244,19 @@ pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoV
         <DownloadComp context=context/>
         <br/><br/><br/>
 
-        <button on:click=add_object>"Add Object"</button>
+        <button on:click=add_object id="add_object">"Add Object"</button>
         <button
             on:click=remove_object
             on:mouseover=move |_| {delete_hover_obj.set(true)}
             on:mouseout=move |_| {delete_hover_obj.set(false)}
-        >"Remove Object"</button>
+        id="remove_object">"Remove Object"</button>
         <br/><br/>
-        <button on:click=add_attribute>"Add Attribute"</button>
+        <button on:click=add_attribute id="add_attribute">"Add Attribute"</button>
         <button
             on:click=remove_attribute
             on:mouseover=move |_| {delete_hover_attr.set(true)}
             on:mouseout=move |_| {delete_hover_attr.set(false)}
-        >"Remove Attribute"</button>
+        id="remove_attribute">"Remove Attribute"</button>
         <br/><br/>
 
         <table
@@ -344,7 +349,7 @@ pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoV
         <br/>
         <div style:display="flex">
             <div style:min-width="200px" style:max-width="40%">
-                <button on:click=calc_concepts>"Compute Concepts"</button>
+                <button on:click=calc_concepts id="compute_concepts">"Compute Concepts"</button>
                 {move || {
                     if let Some(n) = concepts.get() {
                         let concepts_clone: Vec<(usize, (BitSet, BitSet))> = concepts.get().unwrap().into_iter().enumerate().collect();
@@ -414,7 +419,7 @@ pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoV
                 }}
             </div>
             <div style:min-width="200px" style:max-width="40%">
-                <button on:click=calc_basis>"Compute Canonical Base"</button>
+                <button on:click=calc_basis id="compute_canonical_base">"Compute Canonical Base"</button>
                 {move || {
                     if let Some(n) = basis.get() {
                         let basis_clone: Vec<(usize, (BitSet, BitSet))> = basis.get().unwrap().into_iter().enumerate().collect();
@@ -494,14 +499,45 @@ pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoV
 
         </div>
 
+        <div
+            style:margin-top="10px"
+            style:margin-bottom="10px"
+            style:display="flex"
+            style:align-items="center"
+            style:gap="10px"
+        >
+            <label
+                style:font-family="monospace"
+                style:font-size="18px"
+            >"Layout Algorithm: "</label>
+            <select
+                on:change=move |ev| {
+                    let select: web_sys::HtmlSelectElement = ev.target().unwrap().unchecked_into();
+                    let value = select.value();
+                    let algorithm = match value.as_str() {
+                        "Sugiyama" => LayoutAlgorithm::Sugiyama,
+                        _ => LayoutAlgorithm::Dimdraw,
+                    };
+                    layout_algorithm.set(algorithm);
+                }
+            >
+                <option value="Dimdraw" selected=move || layout_algorithm.get() == LayoutAlgorithm::Dimdraw>"Dimdraw"</option>
+                <option value="Sugiyama" selected=move || layout_algorithm.get() == LayoutAlgorithm::Sugiyama>"Sugiyama"</option>
+            </select>
+        </div>
+
         <button on:click=move |_| {
             calc_concepts(MouseEvent::new("click").unwrap());
             concept_lattice.set(true);
-        }>"Draw Concept Lattice"</button>
+        } id="draw_concept_lattice">"Draw Concept Lattice"</button>
         {move || {
             if concept_lattice.get() {
                 Either::Left(view! {
-                    <GraphComp concepts=concepts.get_untracked().unwrap() context=context.get_untracked()/>
+                    <GraphComp
+                        concepts={concepts.get_untracked().unwrap()}
+                        context=context.get_untracked()
+                        algorithm={layout_algorithm.get()}
+                    />
                 })
             } else {
                 Either::Right(view! {

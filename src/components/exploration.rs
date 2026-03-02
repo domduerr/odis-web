@@ -1,7 +1,7 @@
 use leptos::{logging, prelude::*};
 
 use bit_set::BitSet;
-use odis::{self, FormalContext, algorithms::canonical_basis};
+use odis::{self, algorithms::canonical_basis, FormalContext};
 
 use crate::components::table::Table;
 
@@ -47,14 +47,14 @@ pub fn ExplorationComp(
                     } else {
 
                         break_while_2.set(false);
-                        *temp_set.write() = canonical_basis::next_preclosure(&context.get(), &basis.get(), &temp_set.get());
+                        *temp_set.write() = canonical_basis::index_next_preclosure(&context.get(), &basis.get(), &temp_set.get());
 
                     }
                 }
                 if temp_set.get() == (0..context.get().attributes.len()).collect() {
                     show_finished.set("block");
                 }
-        }>"Start Exploration"</button>
+        } id="start_exploration">"Start Exploration"</button>
 
         <div
             style:opacity="0.6"
@@ -106,7 +106,7 @@ pub fn ExplorationComp(
                         break_while_2.set(true);
                         show_question_1.set("none");
                         start_node.get().unwrap().click();
-                }>"Yes"</button>
+                }id="yes">"Yes"</button>
 
                 <button
                     on:click=move |_| {
@@ -123,7 +123,7 @@ pub fn ExplorationComp(
 
                         show_question_1.set("none");
                         show_question_2.set("block");
-                }>"No"</button>
+                } id="no">"No"</button>
 
                 <button
                     on:click=move |_| {
@@ -137,7 +137,7 @@ pub fn ExplorationComp(
                         break_while_2.set(false);
 
                         checkboxes.set(Vec::new());
-                }>"Stop exploration"</button>
+                }id="stop_exploration">"Stop exploration"</button>
             </div>
         </div>
 
@@ -165,14 +165,12 @@ pub fn ExplorationComp(
                         <tr>
                             <td/>
                             <For
-                                each=move || (0..context.get().attributes.len())
+                                each=move || 0..context.get().attributes.len()
                                 key=move |key| *key
                                 children=move |index| {
                                     view! {
                                         <td>
-                                            <p>
-                                                {format!("{}", context.get().attributes[index].clone())}
-                                            </p>
+                                            <p>{move || context.get().attributes[index].to_string()}</p>
                                         </td>
                                     }
                                 }
@@ -182,6 +180,7 @@ pub fn ExplorationComp(
                         <tr>
                             <td>
                                 <input
+                                    id="enter_object_name"
                                     type="text"
                                     placeholder="Enter object name..."
                                     on:change=move |_| {
@@ -246,7 +245,7 @@ pub fn ExplorationComp(
                         logging::log!("Atomic obj: {:?}\n", b);
                         start_node.get().unwrap().click();
                     }
-                >"Submit"</button>
+                id="submit">"Submit"</button>
             </div>
         </div>
 
@@ -279,7 +278,7 @@ pub fn ExplorationComp(
 
                         checkboxes.set(Vec::new());
                     }
-                >"Exit"</button>
+                id="exit">"Exit"</button>
             </div>
         </div>
     }

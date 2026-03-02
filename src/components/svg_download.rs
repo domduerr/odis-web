@@ -19,7 +19,7 @@ pub fn SvgDownloadComp(node_ref: NodeRef<leptos::svg::Svg>) -> impl IntoView {
             link.get().unwrap().set_download("Graph_SVG");
             link.get().unwrap().set_href(&url);
             link.get().unwrap().click();
-        }>"Download Concept Lattice"</button>
+        } id="download_concept_lattice">"Download Concept Lattice"</button>
         <a
             node_ref=link
             style="display: none"

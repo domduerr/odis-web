@@ -52,8 +52,8 @@ pub fn App() -> impl IntoView {
         <h1>"Odis Web"</h1>
 
         <form on:submit=on_submit style:display="inline" style:padding-right="20px">
-            <input type="file" node_ref=input_element/>
-            <input type="submit" value="Submit"/>
+            <input type="file" id="file" node_ref=input_element/>
+            <input type="submit" id="submit_file" value="Submit"/>
         </form>
 
         {move || {
