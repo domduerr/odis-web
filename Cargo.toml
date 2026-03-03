@@ -20,6 +20,7 @@ web-sys = { version = "0.3.77", features = [
     "HtmlElement",
     "HtmlAnchorElement",
     "BlobPropertyBag",
+    "HtmlSelectElement",
 ] }
 leptos-use = { version = "0.15.10", features = ["use_draggable"] }
 wasm-bindgen-futures = "0.4.50"

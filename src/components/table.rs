@@ -1,549 +1,238 @@
+use leptos::prelude::*;
+use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
-use leptos::{either::Either, prelude::*};
 
 use bit_set::BitSet;
 use odis::FormalContext;
 use std::collections::HashMap;
-use web_sys::MouseEvent;
-
-use crate::components::{
-    checkbox::CheckboxComp,
-    download::DownloadComp,
-    exploration::ExplorationComp,
-    graph::{GraphComp, LayoutAlgorithm},
-};
 
 #[derive(Debug, Clone)]
 pub struct Table {
-    // (key, position)
     pub row_data: Vec<(usize, usize)>,
-    // (key, position)
     pub column_data: Vec<(usize, usize)>,
-    // ((pos_row, pos_column), checked)
     pub boxes: HashMap<(usize, usize), RwSignal<bool>>,
+}
+
+fn create_default_context() -> FormalContext<String> {
+    let mut ctx = FormalContext::new();
+    for n in 0..5 {
+        ctx.add_object(format!("Object {}", n), &BitSet::new());
+        ctx.add_attribute(format!("Attribute {}", n), &BitSet::new());
+    }
+    ctx
 }
 
 #[component]
 pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoView {
-    let mut temp_context = RwSignal::new(FormalContext::new());
-    if let Some(n) = context.get() {
-        temp_context = RwSignal::new(n);
-    } else {
-        for n in 0..5 {
-            temp_context
-                .write()
-                .add_object(format!("Object {}", n), &BitSet::new());
-            temp_context
-                .write()
-                .add_attribute(format!("Attribute {}", n), &BitSet::new());
-        }
-    }
-    let context = temp_context;
-
-    let row_key = RwSignal::new(0);
-    let column_key = RwSignal::new(0);
-    let table = RwSignal::new(Table {
-        row_data: Vec::new(),
-        column_data: Vec::new(),
-        boxes: HashMap::new(),
-    });
-
-    let object_names: RwSignal<Vec<NodeRef<leptos::html::Input>>> = RwSignal::new(Vec::new());
-    let attribute_names: RwSignal<Vec<NodeRef<leptos::html::Input>>> = RwSignal::new(Vec::new());
-
-    let concepts = RwSignal::new(None);
-    let concept_lattice = RwSignal::new(false);
-    let basis = RwSignal::new(None);
-    let layout_algorithm = RwSignal::new(LayoutAlgorithm::Dimdraw);
+    let effective_context =
+        Signal::derive(move || context.get().unwrap_or_else(|| create_default_context()));
 
     let focus_pos: RwSignal<(usize, usize)> = RwSignal::new((0, 0));
     let delete_hover_obj = RwSignal::new(false);
     let delete_hover_attr = RwSignal::new(false);
 
-    for g in 0..context.get_untracked().objects.len() {
-        table.update(|table| {
-            table.row_data.push((row_key.get_untracked(), g));
-        });
-        row_key.update(|key| *key += 1);
-
-        object_names.update(|list| list.push(NodeRef::new()));
-    }
-
-    for m in 0..context.get_untracked().attributes.len() {
-        table.update(|table| {
-            table.column_data.push((column_key.get_untracked(), m));
-        });
-        column_key.update(|key| *key += 1);
-
-        attribute_names.update(|list| list.push(NodeRef::new()));
-    }
-
-    for g in 0..context.get_untracked().objects.len() {
-        for m in 0..context.get_untracked().attributes.len() {
-            if context.get_untracked().incidence.contains(&(g, m)) {
-                table.update(|table| {
-                    table.boxes.insert((g, m), RwSignal::new(true));
-                });
-            } else {
-                table.update(|table| {
-                    table.boxes.insert((g, m), RwSignal::new(false));
-                });
-            }
-        }
-    }
-
     let add_object = move |_| {
-        let num_obj = table.get().row_data.last().unwrap().1;
-
-        table.update(|table| table.row_data.push((row_key.get(), num_obj + 1)));
-        row_key.update(|key| *key += 1);
-
-        for n in 0..table.read_only().get().column_data.len() {
-            table.update(|table| {
-                table.boxes.insert((num_obj + 1, n), RwSignal::new(false));
-            });
-        }
-
-        context.update(|context| {
-            context.add_object("Object".to_string(), &BitSet::new());
-        });
-
-        object_names.update(|list| list.push(NodeRef::new()));
+        let current_context = effective_context.get_untracked();
+        let mut new_context = current_context.clone();
+        new_context.add_object("Object".to_string(), &BitSet::new());
+        context.set(Some(new_context));
     };
 
     let remove_object = move |_| {
-        if table.read_only().get().row_data.len() <= 1 {
+        let current_context = effective_context.get_untracked();
+        if current_context.objects.len() <= 1 {
             return;
-        };
-
-        let index = focus_pos.read_only().get().0;
-
-        for attr in 0..table.read_only().get().column_data.len() {
-            table.update(|table| {
-                table.boxes.remove(&(index, attr));
-            });
-            for obj in (index + 1)..table.read_only().get().row_data.len() {
-                table.update(|table| {
-                    let signal = table.boxes.remove(&(obj, attr)).unwrap();
-                    table.boxes.insert((obj - 1, attr), signal);
-                });
-            }
         }
 
-        table.update(|table| {
-            table.row_data.remove(index);
-            table.row_data = table
-                .row_data
-                .iter()
-                .map(|x| {
-                    if x.1 > index {
-                        let new_row = (row_key.get(), x.1 - 1);
-                        row_key.update(|key| *key += 1);
-                        new_row
-                    } else {
-                        *x
-                    }
-                })
-                .collect::<Vec<(usize, usize)>>();
-        });
+        let index = focus_pos.get_untracked().0;
 
-        context.update(|context| {
-            context.remove_object(index);
-        });
-
-        object_names.update(|list| {
-            list.remove(index);
-        });
-
-        if focus_pos.read_only().get().0 >= table.read_only().get().row_data.len() {
-            focus_pos.update(|pos| *pos = (table.read_only().get().row_data.len() - 1, pos.1));
-        }
+        let mut new_context = current_context.clone();
+        new_context.remove_object(index);
+        context.set(Some(new_context));
     };
 
     let add_attribute = move |_| {
-        let num_attr = table.get().column_data.last().unwrap().1;
-
-        table.update(|table| table.column_data.push((column_key.get(), num_attr + 1)));
-        column_key.update(|key| *key += 1);
-
-        for n in 0..table.read_only().get().row_data.len() {
-            table.update(|table| {
-                table.boxes.insert((n, num_attr + 1), RwSignal::new(false));
-            });
-        }
-
-        context.update(|context| {
-            context.add_attribute("Attribute".to_string(), &BitSet::new());
-        });
-
-        attribute_names.update(|list| list.push(NodeRef::new()));
+        let current_context = effective_context.get_untracked();
+        let mut new_context = current_context.clone();
+        new_context.add_attribute("Attribute".to_string(), &BitSet::new());
+        context.set(Some(new_context));
     };
 
     let remove_attribute = move |_| {
-        if table.read_only().get().column_data.len() <= 1 {
+        let current_context = effective_context.get_untracked();
+        if current_context.attributes.len() <= 1 {
             return;
-        };
-
-        let index = focus_pos.read_only().get().1;
-
-        for obj in 0..table.read_only().get().row_data.len() {
-            table.update(|table| {
-                table.boxes.remove(&(obj, index));
-            });
-            for attr in (index + 1)..table.read_only().get().column_data.len() {
-                table.update(|table| {
-                    let signal = table.boxes.remove(&(obj, attr)).unwrap();
-                    table.boxes.insert((obj, attr - 1), signal);
-                });
-            }
         }
 
-        table.update(|table| {
-            table.column_data.remove(index);
-            table.column_data = table
-                .column_data
-                .iter()
-                .map(|x| {
-                    if x.1 > index {
-                        let new_column = (column_key.get(), x.1 - 1);
-                        column_key.update(|key| *key += 1);
-                        new_column
-                    } else {
-                        *x
-                    }
-                })
-                .collect::<Vec<(usize, usize)>>();
-        });
+        let index = focus_pos.get_untracked().1;
 
-        context.update(|context| {
-            context.remove_attribute(index);
-        });
+        let mut new_context = current_context.clone();
+        new_context.remove_attribute(index);
+        context.set(Some(new_context));
+    };
 
-        attribute_names.update(|list| {
-            list.remove(index);
-        });
+    let change_object_name = move |index: usize, name: String| {
+        let current_context = effective_context.get_untracked();
+        let mut new_context = current_context.clone();
+        new_context.change_object_name(name, index);
+        context.set(Some(new_context));
+    };
 
-        if focus_pos.read_only().get().1 >= table.read_only().get().column_data.len() {
-            focus_pos.update(|pos| *pos = (pos.0, table.read_only().get().column_data.len() - 1));
+    let change_attribute_name = move |index: usize, name: String| {
+        let current_context = effective_context.get_untracked();
+        let mut new_context = current_context.clone();
+        new_context.change_attribute_name(name, index);
+        context.set(Some(new_context));
+    };
+
+    let toggle_cell = move |obj: usize, attr: usize, value: bool| {
+        let current_context = effective_context.get_untracked();
+        let mut new_context = current_context.clone();
+
+        if value {
+            new_context.incidence.insert((obj, attr));
+        } else {
+            new_context.incidence.remove(&(obj, attr));
         }
-    };
 
-    let calc_concepts = move |_| {
-        let mut result: Vec<(BitSet, BitSet)> =
-            context.read_only().get().fcbo_index_concepts().collect();
-        context.get().index_sort_lectic_order(&mut result);
-        concepts.set(Some(result));
-    };
-
-    let calc_basis = move |_| {
-        let result = context.read_only().get().index_canonical_basis();
-        basis.set(Some(result));
+        context.set(Some(new_context));
     };
 
     view! {
-        <DownloadComp context=context/>
-        <br/><br/><br/>
+        <div class="bg-white min-h-full">
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-dhbw-gray font-semibold text-lg">Cross Table</h2>
+                    <div class="flex gap-2">
+                        <button on:click=add_object class="px-3 py-1.5 bg-dhbw-red text-white rounded hover:bg-red-700 text-sm flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                            Add Object
+                        </button>
+                        <button
+                            on:click=remove_object
+                            on:mouseover=move |_| {delete_hover_obj.set(true)}
+                            on:mouseout=move |_| {delete_hover_obj.set(false)}
+                            class="px-3 py-1.5 border border-dhbw-gray-25 rounded hover:bg-dhbw-gray/10 text-dhbw-gray text-sm flex items-center gap-1"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                            </svg>
+                            Remove Object
+                        </button>
+                        <button on:click=add_attribute class="px-3 py-1.5 bg-dhbw-red text-white rounded hover:bg-red-700 text-sm flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                            Add Attribute
+                        </button>
+                        <button
+                            on:click=remove_attribute
+                            on:mouseover=move |_| {delete_hover_attr.set(true)}
+                            on:mouseout=move |_| {delete_hover_attr.set(false)}
+                            class="px-3 py-1.5 border border-dhbw-gray-25 rounded hover:bg-dhbw-gray/10 text-dhbw-gray text-sm flex items-center gap-1"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                            </svg>
+                            Remove Attribute
+                        </button>
+                    </div>
+                </div>
 
-        <button on:click=add_object id="add_object">"Add Object"</button>
-        <button
-            on:click=remove_object
-            on:mouseover=move |_| {delete_hover_obj.set(true)}
-            on:mouseout=move |_| {delete_hover_obj.set(false)}
-        id="remove_object">"Remove Object"</button>
-        <br/><br/>
-        <button on:click=add_attribute id="add_attribute">"Add Attribute"</button>
-        <button
-            on:click=remove_attribute
-            on:mouseover=move |_| {delete_hover_attr.set(true)}
-            on:mouseout=move |_| {delete_hover_attr.set(false)}
-        id="remove_attribute">"Remove Attribute"</button>
-        <br/><br/>
-
-        <table
-            style:background="#D3D3D3"
-            style:max-width="100%"
-            style:table-layout="auto"
-        >
-            <tbody>
-                <tr>
-                    <td></td> // top left corner
-                    <For
-                        each=move || table.get().column_data
-                        key=move |key| key.0
-                        children=move |column| {
-                            view! {
-                                <td>
-                                    <input type="text" style:width="120px"
-                                        on:focus=move |_| {
-                                            focus_pos.update(|pos| {
-                                                *pos = (pos.0, column.1)
-                                            });
-                                        }
-                                        on:change=move |_| {
-                                            let name = attribute_names.read_only().get()[column.1].get().unwrap().value();
-                                            context.update(|context| context.change_attribute_name(name, column.1));
-                                        }
-                                        value=context.get().attributes[column.1].clone()
-                                        node_ref=attribute_names.get()[column.1]
-                                    />
-                                </td>
-                            }
-                        }
-                    />
-                </tr>
-                <For
-                    each=move || table.get().row_data
-                    key=|key| key.0
-                    children=move |row| {
-                        view! {
+                <div class="overflow-auto border border-dhbw-gray-25 rounded-lg">
+                    <table class="w-full bg-gray-100">
+                        <tbody>
                             <tr>
-                                <td>
-                                    <input type="text" style:width="120px"
-                                        on:focus=move |_| {
-                                            focus_pos.update(|pos| {
-                                                *pos = (row.1, pos.1)
-                                            });
-                                        }
-                                        on:change=move |_| {
-                                            let name = object_names.get()[row.1].get().unwrap().value();
-                                            context.update(|context| context.change_object_name(name, row.1));
-                                        }
-                                        value=context.get().objects[row.1].clone()
-                                        node_ref=object_names.get()[row.1]
-                                    />
-                                </td>
-                                <For
-                                    each=move || table.get().column_data
-                                    key=|column| column.0
-                                    children=move |column| {
+                                <td class="w-10 h-10 bg-gray-200 border border-dhbw-gray-25"></td>
+                                {move || {
+                                    let attrs: Vec<_> = effective_context.get().attributes.iter().cloned().enumerate().collect();
+                                    attrs.into_iter().map(|(col_idx, attr_name)| {
                                         view! {
-                                            <td
-                                                style:text-align="center"
-                                                // style:border="1px solid black"
-                                                style:background-color=move || {
-                                                    if delete_hover_obj.get() && row.1 == focus_pos.get().0 {
-                                                        "lightblue"
-                                                    } else if delete_hover_attr.get() && column.1 == focus_pos.get().1 {
-                                                        "lightblue"
-                                                    } else if (row.1, column.1) == focus_pos.get() {
-                                                        "lightblue"
-                                                    } else {
-                                                        "#D3D3D3"
+                                            <td class="p-2 bg-gray-200 border border-dhbw-gray-25 min-w-32">
+                                                <input type="text" class="w-full px-2 py-1 text-sm border border-dhbw-gray-25 rounded focus:outline-none focus:border-dhbw-red bg-white"
+                                                    on:focus=move |_| {
+                                                        focus_pos.update(|pos| {
+                                                            *pos = (pos.0, col_idx)
+                                                        });
                                                     }
-                                                }
-                                                on:click=move |_| {
-                                                    focus_pos.update(|pos| *pos = (row.1, column.1));
-                                                }
-                                            >
-                                                <CheckboxComp context=context row=row.1 column=column.1 table=table position=focus_pos/>
+                                                    on:change=move |ev| {
+                                                        let input: web_sys::HtmlInputElement = ev.target().unwrap().unchecked_into();
+                                                        change_attribute_name(col_idx, input.value());
+                                                    }
+                                                    prop:value=attr_name.clone()
+                                                />
                                             </td>
                                         }
-                                    }
-                                />
+                                    }).collect::<Vec<_>>()
+                                }}
                             </tr>
-                        }
-                    }
-                />
-            </tbody>
-        </table>
-        <br/>
-        <div style:display="flex">
-            <div style:min-width="200px" style:max-width="40%">
-                <button on:click=calc_concepts id="compute_concepts">"Compute Concepts"</button>
-                {move || {
-                    if let Some(n) = concepts.get() {
-                        let concepts_clone: Vec<(usize, (BitSet, BitSet))> = concepts.get().unwrap().into_iter().enumerate().collect();
-                        Either::Left(view! {
-                            <p>{format!("The number of concepts is: {}", n.len())}</p>
-                            <ul style:max-height="300px" style:overflow-y="scroll">
-                                <For
-                                    each=move || concepts_clone.clone()
-                                    key=|key| key.0
-                                    children=move |concept| {
-                                        view! {
-                                            <li style:white-space="pre">
-                                                {
-                                                    let mut obj_string = String::new();
-                                                    obj_string.push('{');
-
-                                                    for n in &concept.1.0 {
-                                                        obj_string.push_str(
-                                                            &(" ".to_string() + &context.get().objects[n] + " ,")
-                                                        );
+                            {move || {
+                                let objs: Vec<_> = effective_context.get().objects.iter().cloned().enumerate().collect();
+                                let attrs_count = effective_context.get().attributes.len();
+                                objs.into_iter().map(|(row_idx, obj_name)| {
+                                    view! {
+                                        <tr>
+                                            <td class="p-2 bg-gray-200 border border-dhbw-gray-25">
+                                                <input type="text" class="w-32 px-2 py-1 text-sm border border-dhbw-gray-25 rounded focus:outline-none focus:border-dhbw-red bg-white"
+                                                    on:focus=move |_| {
+                                                        focus_pos.update(|pos| {
+                                                            *pos = (row_idx, pos.1)
+                                                        });
                                                     }
-
-                                                    if concept.1.0.len() > 0 {
-                                                        obj_string.pop();
+                                                    on:change=move |ev| {
+                                                        let input: web_sys::HtmlInputElement = ev.target().unwrap().unchecked_into();
+                                                        change_object_name(row_idx, input.value());
+                                                    }
+                                                    prop:value=obj_name.clone()
+                                                />
+                                            </td>
+                                            {(0..attrs_count).into_iter().map(|col_idx| {
+                                                let row_idx = row_idx;
+                                                let base_class = Signal::derive(move || {
+                                                    let base = "p-1 text-center cursor-pointer border border-dhbw-gray-25";
+                                                    let bg = if delete_hover_obj.get() && row_idx == focus_pos.get().0 {
+                                                        "bg-blue-100"
+                                                    } else if delete_hover_attr.get() && col_idx == focus_pos.get().1 {
+                                                        "bg-blue-100"
+                                                    } else if (row_idx, col_idx) == focus_pos.get() {
+                                                        "bg-blue-100"
                                                     } else {
-                                                        obj_string.push(' ');
-                                                    }
-                                                    obj_string.push('}');
+                                                        "bg-white"
+                                                    };
+                                                    format!("{} {}", base, bg)
+                                                });
 
-                                                    let mut white_spaces = String::from("   ");
-                                                    if concept.0 >= 9 {
-                                                        white_spaces.truncate(1);
-                                                    }
-
-                                                    format!("{}:{}{},", concept.0 + 1, white_spaces, obj_string)
+                                                view! {
+                                                    <td
+                                                        class=base_class
+                                                        on:click=move |_| {
+                                                            focus_pos.update(|pos| *pos = (row_idx, col_idx));
+                                                        }
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked=move || {
+                                                                effective_context.get().incidence.contains(&(row_idx, col_idx))
+                                                            }
+                                                            on:change=move |ev| {
+                                                                let input: web_sys::HtmlInputElement = ev.target().unwrap().unchecked_into();
+                                                                toggle_cell(row_idx, col_idx, input.checked());
+                                                            }
+                                                            class="accent-dhbw-red cursor-pointer w-4 h-4"
+                                                        />
+                                                    </td>
                                                 }
-                                                <br/>
-                                                {
-                                                    let mut attr_string = String::new();
-                                                    attr_string.push('{');
-
-                                                    for n in &concept.1.1 {
-                                                        attr_string.push_str(
-                                                            &(" ".to_string() + &context.get().attributes[n] + " ,")
-                                                        );
-                                                    }
-                                                    if concept.1.1.len() > 0 {
-                                                        attr_string.pop();
-                                                    } else {
-                                                        attr_string.push(' ');
-                                                    }
-                                                    attr_string.push('}');
-
-                                                    let white_spaces = String::from("      ");
-
-                                                    format!("{}{}", white_spaces, attr_string)
-                                                }
-                                            </li>
-                                        }
+                                            }).collect::<Vec<_>>()}
+                                        </tr>
                                     }
-                                />
-                            </ul>
-                        })
-                    } else {
-                        Either::Right(view! {<p>"..."</p>})
-                    }
-                }}
+                                }).collect::<Vec<_>>()
+                            }}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div style:min-width="200px" style:max-width="40%">
-                <button on:click=calc_basis id="compute_canonical_base">"Compute Canonical Base"</button>
-                {move || {
-                    if let Some(n) = basis.get() {
-                        let basis_clone: Vec<(usize, (BitSet, BitSet))> = basis.get().unwrap().into_iter().enumerate().collect();
-                        Either::Left(view! {
-                            <p>{format!("The number of implications is: {}", n.len())}</p>
-                            <ul style:max-height="300px" style:overflow-y="scroll">
-                                <For
-                                    each=move || basis_clone.clone()
-                                    key=|key| key.0
-                                    children=move |basis| {
-                                        view! {
-                                            <li style:white-space="pre">
-                                                {
-                                                    let mut premise = String::new();
-                                                    premise.push('{');
-
-                                                    for n in &basis.1.0 {
-                                                        premise.push_str(
-                                                            &(" ".to_string() + &context.get().attributes[n] + " ,")
-                                                        );
-                                                    }
-
-                                                    if basis.1.0.len() > 0 {
-                                                        premise.pop();
-                                                    } else {
-                                                        premise.push(' ');
-                                                    }
-                                                    premise.push('}');
-
-                                                    let mut white_spaces = String::from("   ");
-                                                    if basis.0 >= 9 {
-                                                        white_spaces.truncate(1);
-                                                    }
-
-                                                    format!("{}:{}{},", basis.0 + 1, white_spaces, premise)
-                                                }
-                                                <br/>
-                                                {
-                                                    let mut conclusion = String::new();
-                                                    conclusion.push('{');
-
-                                                    for n in &basis.1.1 {
-                                                        conclusion.push_str(
-                                                            &(" ".to_string() + &context.get().attributes[n] + " ,")
-                                                        );
-                                                    }
-                                                    if basis.1.1.len() > 0 {
-                                                        conclusion.pop();
-                                                    } else {
-                                                        conclusion.push(' ');
-                                                    }
-                                                    conclusion.push('}');
-
-                                                    let white_spaces = String::from("      ");
-
-                                                    format!("{}{}", white_spaces, conclusion)
-                                                }
-                                            </li>
-                                        }
-                                    }
-                                />
-                            </ul>
-                        })
-                    } else {
-                        Either::Right(view! {<p>"..."</p>})
-                    }
-                }}
-            </div>
-            <div>
-                <ExplorationComp
-                    context=context
-                    table=table
-                    row_key=row_key
-                    object_names=object_names
-                />
-            </div>
-
         </div>
-
-        <div
-            style:margin-top="10px"
-            style:margin-bottom="10px"
-            style:display="flex"
-            style:align-items="center"
-            style:gap="10px"
-        >
-            <label
-                style:font-family="monospace"
-                style:font-size="18px"
-            >"Layout Algorithm: "</label>
-            <select
-                on:change=move |ev| {
-                    let select: web_sys::HtmlSelectElement = ev.target().unwrap().unchecked_into();
-                    let value = select.value();
-                    let algorithm = match value.as_str() {
-                        "Sugiyama" => LayoutAlgorithm::Sugiyama,
-                        _ => LayoutAlgorithm::Dimdraw,
-                    };
-                    layout_algorithm.set(algorithm);
-                }
-            >
-                <option value="Dimdraw" selected=move || layout_algorithm.get() == LayoutAlgorithm::Dimdraw>"Dimdraw"</option>
-                <option value="Sugiyama" selected=move || layout_algorithm.get() == LayoutAlgorithm::Sugiyama>"Sugiyama"</option>
-            </select>
-        </div>
-
-        <button on:click=move |_| {
-            calc_concepts(MouseEvent::new("click").unwrap());
-            concept_lattice.set(true);
-        } id="draw_concept_lattice">"Draw Concept Lattice"</button>
-        {move || {
-            if concept_lattice.get() {
-                Either::Left(view! {
-                    <GraphComp
-                        concepts={concepts.get_untracked().unwrap()}
-                        context=context.get_untracked()
-                        algorithm={layout_algorithm.get()}
-                    />
-                })
-            } else {
-                Either::Right(view! {
-                    <br/><br/>
-                })
-            }
-        }}
     }
 }

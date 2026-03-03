@@ -1,10 +1,11 @@
 use console_error_panic_hook;
-use leptos::{either::Either, html::Input, logging, prelude::*, task::spawn_local};
-use web_sys::SubmitEvent;
+use leptos::{logging, prelude::*, wasm_bindgen, task::spawn_local, wasm_bindgen::JsCast};
 
 use odis::{self, FormalContext};
 
+use crate::components::layout::{Header, Sidebar, View};
 use crate::components::table::TableComp;
+use crate::components::views::{ConceptsView, ConceptLatticeView, CanonicalBasisView, ExplorationViewWrapper};
 
 mod components {
     pub mod checkbox;
@@ -17,52 +18,122 @@ mod components {
         pub mod edge;
         pub mod node;
     }
+    pub mod layout;
+    pub mod views;
 }
 
 mod js_fn;
 
+fn create_default_context() -> FormalContext<String> {
+    let mut default_context = FormalContext::new();
+    for n in 0..5 {
+        default_context.add_object(format!("Object {}", n), &bit_set::BitSet::new());
+        default_context.add_attribute(format!("Attribute {}", n), &bit_set::BitSet::new());
+    }
+    default_context
+}
+
 #[component]
 pub fn App() -> impl IntoView {
-    let context = RwSignal::new(None::<FormalContext<String>>);
-    let input_element: NodeRef<Input> = NodeRef::new();
+    let context = RwSignal::new(Some(create_default_context()));
+    let current_view = RwSignal::new(View::FormalContext);
 
-    let on_submit = move |ev: SubmitEvent| {
-        ev.prevent_default();
-
-        if "".to_string() == input_element.get().unwrap().value() {
-            logging::log!("No file selected yet");
-            return;
+    let on_context_loaded = {
+        let context = context.clone();
+        move |new_context: Option<FormalContext<String>>| {
+            logging::log!("on_context_loaded called with: {:?}", new_context.is_some());
+            if let Some(ctx) = new_context {
+                logging::log!("Context loaded - Objects: {}, Attributes: {}", ctx.objects.len(), ctx.attributes.len());
+                context.set(Some(ctx));
+            } else {
+                logging::log!("Failed to parse context, keeping current");
+            }
         }
+    };
 
-        let fileList = input_element
-            .get()
-            .expect("<input> should be mounted")
-            .files();
-        let file = fileList.unwrap().item(0).unwrap();
+    let on_save_context = {
+        let context = context.clone();
+        move |_| {
+            if let Some(ref ctx) = context.get() {
+                let ctx_clone = ctx.clone();
+                spawn_local(async move {
+                    let ctx = ctx_clone;
+                    let mut content = format!("B\n\n{}\n{}\n\n", ctx.objects.len(), ctx.attributes.len());
 
-        spawn_local(async move {
-            let contents = js_fn::file_contents(file.clone()).await;
-            context.set(Some(
-                FormalContext::<String>::from(contents.as_bytes()).expect("parsing error"),
-            ));
-        });
+                    for object in ctx.objects.iter() {
+                        if object != &"".to_string() {
+                            content.push_str(object);
+                        } else {
+                            content.push_str("\"no name\"");
+                        }
+                        content.push_str("\n");
+                    }
+                    for attribute in ctx.attributes.iter() {
+                        if attribute != &"".to_string() {
+                            content.push_str(attribute);
+                        } else {
+                            content.push_str("\"no name\"");
+                        }
+                        content.push_str("\n");
+                    }
+                    for column in 0..ctx.objects.len() {
+                        for row in 0..ctx.attributes.len() {
+                            if ctx.incidence.contains(&(column, row)) {
+                                content.push_str("X");
+                            } else {
+                                content.push_str(".");
+                            }
+                        }
+                        content.push_str("\n");
+                    }
+
+                    let content = vec![content];
+                    let mut name = content[0].lines().next().unwrap().to_owned();
+                    if name == "B".to_string() {
+                        name = "Formal_context.cxt".to_string();
+                    }
+
+                    let file = web_sys::File::new_with_u8_slice_sequence(&wasm_bindgen::JsValue::from(content), &name).unwrap();
+                    let url = web_sys::Url::create_object_url_with_blob(&file).unwrap();
+
+                    let window = web_sys::window().unwrap();
+                    let document = window.document().unwrap();
+                    let link = document.create_element("a").unwrap();
+                    link.set_attribute("download", &name).unwrap();
+                    link.set_attribute("href", &url).unwrap();
+                    let html_link: &web_sys::HtmlElement = link.dyn_ref().unwrap();
+                    html_link.click();
+                });
+            }
+        }
     };
 
     view! {
-        <h1>"Odis Web"</h1>
-
-        <form on:submit=on_submit style:display="inline" style:padding-right="20px">
-            <input type="file" id="file" node_ref=input_element/>
-            <input type="submit" id="submit_file" value="Submit"/>
-        </form>
-
-        {move || {
-            if let None = context.get() {
-                Either::Left(view! {<TableComp context=context/>})
-            } else {
-                Either::Right(view! {<TableComp context=context/>})
-            }
-        }}
+        <div class="flex flex-col h-screen bg-white">
+            <Header/>
+            <div class="flex flex-1 overflow-hidden">
+                <Sidebar current_view on_context_loaded on_save_context/>
+                <main class="flex-1 overflow-auto p-6 bg-gray-50">
+                    {move || match current_view.get() {
+                        View::FormalContext => {
+                            view! { <TableComp context=context/> }.into_any()
+                        }
+                        View::Concepts => {
+                            view! { <ConceptsView context=context/> }.into_any()
+                        }
+                        View::ConceptLattice => {
+                            view! { <ConceptLatticeView context=context/> }.into_any()
+                        }
+                        View::CanonicalBasis => {
+                            view! { <CanonicalBasisView context=context/> }.into_any()
+                        }
+                        View::Exploration => {
+                            view! { <ExplorationViewWrapper context=context/> }.into_any()
+                        }
+                    }}
+                </main>
+            </div>
+        </div>
     }
 }
 
