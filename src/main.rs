@@ -9,6 +9,7 @@ use crate::components::views::{ConceptsView, ConceptLatticeView, CanonicalBasisV
 
 mod components {
     pub mod checkbox;
+    pub mod context;
     pub mod download;
     pub mod exploration;
     pub mod graph;
@@ -24,14 +25,7 @@ mod components {
 
 mod js_fn;
 
-fn create_default_context() -> FormalContext<String> {
-    let mut default_context = FormalContext::new();
-    for n in 0..5 {
-        default_context.add_object(format!("Object {}", n), &bit_set::BitSet::new());
-        default_context.add_attribute(format!("Attribute {}", n), &bit_set::BitSet::new());
-    }
-    default_context
-}
+use crate::components::context::create_default_context;
 
 #[component]
 pub fn App() -> impl IntoView {

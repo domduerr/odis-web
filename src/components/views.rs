@@ -4,16 +4,8 @@ use bit_set::BitSet;
 use leptos::wasm_bindgen::JsCast;
 use odis::FormalContext;
 
+use crate::components::context::create_default_context;
 use crate::components::graph::{GraphComp, LayoutAlgorithm};
-
-fn create_default_context() -> FormalContext<String> {
-    let mut ctx = FormalContext::new();
-    for n in 0..5 {
-        ctx.add_object(format!("Object {}", n), &BitSet::new());
-        ctx.add_attribute(format!("Attribute {}", n), &BitSet::new());
-    }
-    ctx
-}
 
 #[component]
 pub fn FormalContextView(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoView {
