@@ -283,7 +283,6 @@ pub fn ConceptLatticeView() -> impl IntoView {
     let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
 
     let concepts = RwSignal::new(None);
-    let layout_algorithm = RwSignal::new(LayoutAlgorithm::Sugiyama);
 
     let calc_concepts = {
         let context = context.clone();
@@ -297,6 +296,13 @@ pub fn ConceptLatticeView() -> impl IntoView {
     };
 
     calc_concepts();
+
+    let num_concepts = concepts.get().map(|c| c.len()).unwrap_or(0);
+    let layout_algorithm = RwSignal::new(if num_concepts <= 20 {
+        LayoutAlgorithm::DimDraw
+    } else {
+        LayoutAlgorithm::Sugiyama
+    });
 
     view! {
         <div class="bg-gray-50 min-h-full p-6">
