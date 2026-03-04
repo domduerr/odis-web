@@ -1,6 +1,8 @@
 use core::f64;
 
 use bit_set::BitSet;
+use leptos::wasm_bindgen::closure::Closure;
+use leptos::wasm_bindgen::JsCast;
 use leptos::{either::Either, prelude::*};
 use odis::{FormalContext, Lattice};
 
@@ -14,7 +16,7 @@ use crate::core::layout_math::{
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LayoutAlgorithm {
-    Dimdraw,
+    DimDraw,
     Sugiyama,
 }
 
@@ -54,8 +56,9 @@ impl Node {
 pub fn GraphComp(
     concepts: Vec<(BitSet, BitSet)>,
     context: FormalContext<String>,
-    algorithm: LayoutAlgorithm,
+    layout_algorithm: RwSignal<LayoutAlgorithm>,
 ) -> impl IntoView {
+    let algorithm = layout_algorithm.get();
     let lattice_option = Lattice::from_index_concepts(&concepts, &context);
 
     let mut lattice = Lattice::new(odis::Order::new(odis::Graph::new(Vec::new(), Vec::new())));
@@ -67,9 +70,6 @@ pub fn GraphComp(
         error = "Cannot draw concept lattice from singular concept.";
     }
 
-    let width_node_ref: NodeRef<leptos::html::Input> = NodeRef::new();
-    let height_node_ref: NodeRef<leptos::html::Input> = NodeRef::new();
-
     let dimensions = RwSignal::new(Dimensions {
         width: 600.0,
         height: 600.0,
@@ -77,6 +77,60 @@ pub fn GraphComp(
         radius: 8.0,
         font_size: 16,
     });
+
+    let width_input_ref = NodeRef::<leptos::html::Input>::new();
+    let height_input_ref = NodeRef::<leptos::html::Input>::new();
+
+    let is_resizing = RwSignal::new(false);
+    let resize_type = RwSignal::new(0i32);
+    let resize_start_x = RwSignal::new(0.0);
+    let resize_start_y = RwSignal::new(0.0);
+    let resize_start_width = RwSignal::new(0.0);
+    let resize_start_height = RwSignal::new(0.0);
+
+    let on_width_change = move |ev: leptos::ev::Event| {
+        let target: web_sys::HtmlInputElement = ev.target().unwrap().unchecked_into();
+        if let Ok(val) = target.value().parse::<f64>() {
+            dimensions.update(|d: &mut Dimensions| {
+                d.width = val.clamp(200.0, 2000.0);
+            });
+        }
+    };
+
+    let on_height_change = move |ev: leptos::ev::Event| {
+        let target: web_sys::HtmlInputElement = ev.target().unwrap().unchecked_into();
+        if let Ok(val) = target.value().parse::<f64>() {
+            dimensions.update(|d: &mut Dimensions| {
+                d.height = val.clamp(200.0, 2000.0);
+            });
+        }
+    };
+
+    let on_mouse_down_width = move |ev: leptos::ev::MouseEvent| {
+        is_resizing.set(true);
+        resize_type.set(1);
+        resize_start_x.set(ev.client_x() as f64);
+        resize_start_width.set(dimensions.get_untracked().width);
+        let _ = ev.prevent_default();
+    };
+
+    let on_mouse_down_height = move |ev: leptos::ev::MouseEvent| {
+        is_resizing.set(true);
+        resize_type.set(2);
+        resize_start_y.set(ev.client_y() as f64);
+        resize_start_height.set(dimensions.get_untracked().height);
+        let _ = ev.prevent_default();
+    };
+
+    let on_mouse_down_corner = move |ev: leptos::ev::MouseEvent| {
+        is_resizing.set(true);
+        resize_type.set(3);
+        resize_start_x.set(ev.client_x() as f64);
+        resize_start_y.set(ev.client_y() as f64);
+        resize_start_width.set(dimensions.get_untracked().width);
+        resize_start_height.set(dimensions.get_untracked().height);
+        let _ = ev.prevent_default();
+    };
 
     let edges = lattice.order.graph.edges.clone();
     let graph_nodes = lattice.order.graph.nodes.clone();
@@ -96,14 +150,6 @@ pub fn GraphComp(
 
     let nodes = RwSignal::new(Vec::new());
 
-    Effect::new(move || {
-        let width_input: web_sys::HtmlInputElement = width_node_ref.get().unwrap();
-        width_input.set_value(&dimensions.get_untracked().width.to_string());
-
-        let height_input: web_sys::HtmlInputElement = height_node_ref.get().unwrap();
-        height_input.set_value(&dimensions.get_untracked().height.to_string());
-    });
-
     let dimensions_initial = dimensions.get();
     let layout_dims = LayoutDimensions {
         width: dimensions_initial.width,
@@ -112,7 +158,7 @@ pub fn GraphComp(
     };
 
     let node_positions: Vec<(usize, f64, f64)> = match algorithm {
-        LayoutAlgorithm::Dimdraw => compute_dimdraw_layout(&edges, layout_dims),
+        LayoutAlgorithm::DimDraw => compute_dimdraw_layout(&edges, layout_dims),
         LayoutAlgorithm::Sugiyama => {
             compute_sugiyama_layout(&edges, layout_dims, graph_nodes.len())
         }
@@ -149,7 +195,7 @@ pub fn GraphComp(
         };
 
         let node_positions_scaled: Vec<(usize, f64, f64)> = match algorithm {
-            LayoutAlgorithm::Dimdraw => compute_dimdraw_layout(&edges_clone, layout_dims),
+            LayoutAlgorithm::DimDraw => compute_dimdraw_layout(&edges_clone, layout_dims),
             LayoutAlgorithm::Sugiyama => {
                 compute_sugiyama_layout(&edges_clone, layout_dims, graph_nodes_clone.len())
             }
@@ -172,56 +218,80 @@ pub fn GraphComp(
         );
     });
 
+    let width_input_ref2 = width_input_ref.clone();
+    let height_input_ref2 = height_input_ref.clone();
+    let is_resizing2 = is_resizing.clone();
+    let resize_type2 = resize_type.clone();
+    let resize_start_x2 = resize_start_x.clone();
+    let resize_start_y2 = resize_start_y.clone();
+    let resize_start_width2 = resize_start_width.clone();
+    let resize_start_height2 = resize_start_height.clone();
+    let dimensions2 = dimensions.clone();
+
+    let document = window().document().unwrap();
+    let body = document.body().unwrap();
+
+    let move_closure = Closure::wrap(Box::new(move |ev: web_sys::MouseEvent| {
+        if is_resizing2.get() {
+            let rtype = resize_type2.get();
+
+            if rtype == 1 {
+                let delta = ev.client_x() as f64 - resize_start_x2.get();
+                let new_width = (resize_start_width2.get() + delta).clamp(200.0, 2000.0);
+                dimensions2.update(|d| {
+                    d.width = new_width;
+                });
+                if let Some(input) = width_input_ref2.get() {
+                    input.set_value(&new_width.to_string());
+                }
+            } else if rtype == 2 {
+                let delta = ev.client_y() as f64 - resize_start_y2.get();
+                let new_height = (resize_start_height2.get() + delta).clamp(200.0, 2000.0);
+                dimensions2.update(|d| {
+                    d.height = new_height;
+                });
+                if let Some(input) = height_input_ref2.get() {
+                    input.set_value(&new_height.to_string());
+                }
+            } else if rtype == 3 {
+                let delta_x = ev.client_x() as f64 - resize_start_x2.get();
+                let delta_y = ev.client_y() as f64 - resize_start_y2.get();
+                let avg_delta = (delta_x + delta_y) / 2.0;
+                let new_width = (resize_start_width2.get() + avg_delta).clamp(200.0, 2000.0);
+                let new_height = (resize_start_height2.get() + avg_delta).clamp(200.0, 2000.0);
+                dimensions2.update(|d| {
+                    d.width = new_width;
+                    d.height = new_height;
+                });
+                if let Some(input) = width_input_ref2.get() {
+                    input.set_value(&new_width.to_string());
+                }
+                if let Some(input) = height_input_ref2.get() {
+                    input.set_value(&new_height.to_string());
+                }
+            }
+        }
+    }) as Box<dyn FnMut(_)>);
+
+    let up_closure = Closure::wrap(Box::new(move |_ev: web_sys::MouseEvent| {
+        is_resizing.set(false);
+        resize_type.set(0);
+    }) as Box<dyn FnMut(_)>);
+
+    let _ = document
+        .add_event_listener_with_callback("mousemove", move_closure.as_ref().unchecked_ref());
+    let _ =
+        document.add_event_listener_with_callback("mouseup", up_closure.as_ref().unchecked_ref());
+    let _ =
+        body.add_event_listener_with_callback("mousemove", move_closure.as_ref().unchecked_ref());
+    let _ = body.add_event_listener_with_callback("mouseup", up_closure.as_ref().unchecked_ref());
+
+    move_closure.forget();
+    up_closure.forget();
+
     view! {
-        <div class="bg-white border border-dhbw-gray-25 rounded p-4">
-            <div class="mb-4">
-                <div class="flex items-center gap-4 mb-2">
-                    <label class="text-dhbw-gray font-medium text-sm">Width of concept lattice:</label>
-                    <input
-                        id="width"
-                        node_ref=width_node_ref
-                        type="range"
-                        value="600"
-                        min={2.0 * dimensions.get().margin}
-                        max="1000"
-                        on:input=move |_| {
-                            dimensions.update(|dimen| {
-                                let width_input: web_sys::HtmlInputElement = width_node_ref.get().unwrap();
-                                dimen.width = width_input.value().parse().unwrap();
-                            });
-                        }
-                        class="flex-1 max-w-xs h-2 bg-dhbw-gray-5 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <span class="text-sm text-dhbw-gray-50 w-12">{move || dimensions.get().width.to_string()}</span>
-                </div>
-                <div class="flex items-center gap-4">
-                    <label class="text-dhbw-gray font-medium text-sm">Height of concept lattice:</label>
-                    <input
-                        id="height"
-                        node_ref=height_node_ref
-                        type="range"
-                        value="600"
-                        min={2.0 * dimensions.get().margin}
-                        max="1000"
-                        on:input=move |_| {
-                            dimensions.update(|dimen| {
-                                let height_input: web_sys::HtmlInputElement = height_node_ref.get().unwrap();
-                                dimen.height = height_input.value().parse().unwrap();
-                            });
-                        }
-                        class="flex-1 max-w-xs h-2 bg-dhbw-gray-5 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <span class="text-sm text-dhbw-gray-50 w-12">{move || dimensions.get().height.to_string()}</span>
-                </div>
-            </div>
-
-            <SvgDownloadComp node_ref=graph_node/>
-
-            <div
-                class="overflow-auto border border-dhbw-gray-25 rounded"
-                style:width=move || format!("{}px", dimensions.get().width)
-                style:max-width="100%"
-            >
+        <div class="flex items-start">
+            <div class="relative">
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     style:width=move || format!("{}px", dimensions.get().width)
@@ -234,7 +304,7 @@ pub fn GraphComp(
                         height="100%"
                         x="0"
                         y="0"
-                        fill="transparent"
+                        fill="white"
                         stroke-width="2"
                         stroke="#5C697133"
                     />
@@ -291,6 +361,72 @@ pub fn GraphComp(
                         }
                     }}
                 </svg>
+
+                <div
+                    class="absolute top-0 right-0 w-6 h-full cursor-ew-resize hover:bg-dhbw-red-20 transition-colors flex items-center justify-center"
+                    on:mousedown=on_mouse_down_width
+                >
+                    <div class="w-1 h-8 bg-dhbw-gray-30 rounded"></div>
+                </div>
+                <div
+                    class="absolute bottom-0 left-0 w-full h-6 cursor-ns-resize hover:bg-dhbw-red-20 transition-colors flex items-center justify-center"
+                    on:mousedown=on_mouse_down_height
+                >
+                    <div class="w-8 h-1 bg-dhbw-gray-30 rounded"></div>
+                </div>
+                <div
+                    class="absolute bottom-0 right-0 w-8 h-8 cursor-nwse-resize flex items-center justify-center"
+                    on:mousedown=on_mouse_down_corner
+                >
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-4 ml-auto min-w-[180px] bg-gray-50 p-4 rounded-lg border border-dhbw-gray-25">
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs text-dhbw-gray-50 uppercase tracking-wide font-medium">Layout</label>
+                    <select
+                        on:change=move |ev| {
+                            let select: web_sys::HtmlSelectElement = ev.target().unwrap().unchecked_into();
+                            let value = select.value();
+                            let algorithm = match value.as_str() {
+                                "Sugiyama" => LayoutAlgorithm::Sugiyama,
+                                _ => LayoutAlgorithm::DimDraw,
+                            };
+                            layout_algorithm.set(algorithm);
+                        }
+                        class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm text-dhbw-gray focus:outline-none focus:border-dhbw-red"
+                    >
+                        <option value="DimDraw" selected=move || layout_algorithm.get() == LayoutAlgorithm::DimDraw>DimDraw</option>
+                        <option value="Sugiyama" selected=move || layout_algorithm.get() == LayoutAlgorithm::Sugiyama>Sugiyama</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs text-dhbw-gray-50 uppercase tracking-wide font-medium">Width</label>
+                    <input
+                        type="number"
+                        node_ref=width_input_ref
+                        value="600"
+                        min="200"
+                        max="2000"
+                        on:change=on_width_change
+                        class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm text-dhbw-gray focus:outline-none focus:border-dhbw-red"
+                    />
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs text-dhbw-gray-50 uppercase tracking-wide font-medium">Height</label>
+                    <input
+                        type="number"
+                        node_ref=height_input_ref
+                        value="600"
+                        min="200"
+                        max="2000"
+                        on:change=on_height_change
+                        class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm text-dhbw-gray focus:outline-none focus:border-dhbw-red"
+                    />
+                </div>
+                <div class="mt-2">
+                    <SvgDownloadComp node_ref=graph_node/>
+                </div>
             </div>
         </div>
     }

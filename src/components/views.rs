@@ -1,7 +1,6 @@
 use leptos::{either::Either, prelude::*};
 
 use bit_set::BitSet;
-use leptos::wasm_bindgen::JsCast;
 use odis::FormalContext;
 
 use crate::components::exploration::ExplorationComp;
@@ -264,8 +263,7 @@ pub fn ConceptLatticeView() -> impl IntoView {
     let effective_context = Signal::derive(move || context.get());
 
     let concepts = RwSignal::new(None);
-    let concept_lattice = RwSignal::new(false);
-    let layout_algorithm = RwSignal::new(LayoutAlgorithm::Dimdraw);
+    let layout_algorithm = RwSignal::new(LayoutAlgorithm::Sugiyama);
 
     let calc_concepts = move || {
         let current_context = effective_context.get();
@@ -274,58 +272,25 @@ pub fn ConceptLatticeView() -> impl IntoView {
         concepts.set(Some(result));
     };
 
+    calc_concepts();
+
     view! {
         <div class="bg-gray-50 min-h-full p-6">
-            <h2 class="text-dhbw-gray font-semibold text-lg mb-4">Concept Lattice</h2>
-            <div class="flex items-center gap-4 mb-4">
-                <label class="text-dhbw-gray font-medium">Layout Algorithm:</label>
-                <select
-                    on:change=move |ev| {
-                        let select: web_sys::HtmlSelectElement = ev.target().unwrap().unchecked_into();
-                        let value = select.value();
-                        let algorithm = match value.as_str() {
-                            "Sugiyama" => LayoutAlgorithm::Sugiyama,
-                            _ => LayoutAlgorithm::Dimdraw,
-                        };
-                        layout_algorithm.set(algorithm);
-                    }
-                    class="px-3 py-2 border border-dhbw-gray-25 rounded text-dhbw-gray text-sm focus:outline-none focus:border-dhbw-red"
-                >
-                    <option value="Dimdraw" selected=move || layout_algorithm.get() == LayoutAlgorithm::Dimdraw>Dimdraw</option>
-                    <option value="Sugiyama" selected=move || layout_algorithm.get() == LayoutAlgorithm::Sugiyama>Sugiyama</option>
-                </select>
-            </div>
-            <button on:click=move |_| {
-                calc_concepts();
-                concept_lattice.set(true);
-            } class="px-4 py-2 bg-dhbw-red text-white rounded hover:bg-red-700 text-sm mb-4">
-                Draw Concept Lattice
-            </button>
-            <div>
-                {move || {
-                    if concept_lattice.get() {
-                        if let Some(concepts_data) = concepts.get() {
-                            view! {
-                                <div class="mt-4">
-                                    <GraphComp
-                                        concepts=concepts_data
-                                        context=effective_context.get()
-                                        algorithm=layout_algorithm.get()
-                                    />
-                                </div>
-                            }.into_any()
-                        } else {
-                            view! {
-                                <p class="text-dhbw-gray-50 text-sm">No concepts computed yet</p>
-                            }.into_any()
-                        }
-                    } else {
-                        view! {
-                            <p class="text-dhbw-gray-50 text-sm">Click "Draw Concept Lattice" to view the graph</p>
-                        }.into_any()
-                    }
-                }}
-            </div>
+            {move || {
+                if let Some(concepts_data) = concepts.get() {
+                    view! {
+                        <GraphComp
+                            concepts=concepts_data
+                            context=effective_context.get()
+                            layout_algorithm=layout_algorithm
+                        />
+                    }.into_any()
+                } else {
+                    view! {
+                        <p class="text-dhbw-gray-50 text-sm">No concepts computed yet</p>
+                    }.into_any()
+                }
+            }}
         </div>
     }
 }
