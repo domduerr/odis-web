@@ -71,18 +71,24 @@ pub fn TableComp(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoV
         context.set(Some(new_context));
     };
 
-    let toggle_cell = move |obj: usize, attr: usize, value: bool| {
-        let current_context = effective_context.get_untracked();
-        let mut new_context = current_context.clone();
+let toggle_cell = move |obj: usize, attr: usize, value: bool| {
+    let current_context = effective_context.get_untracked();
+    let mut new_context = current_context.clone();
 
-        if value {
-            new_context.incidence.insert((obj, attr));
-        } else {
-            new_context.incidence.remove(&(obj, attr));
-        }
+    if value {
+        new_context.incidence.insert((obj, attr));
+        // WICHTIG: Ableitungen hinzufügen
+        new_context.atomic_object_derivations[obj].insert(attr);
+        new_context.atomic_attribute_derivations[attr].insert(obj);
+    } else {
+        new_context.incidence.remove(&(obj, attr));
+        // WICHTIG: Ableitungen entfernen
+        new_context.atomic_object_derivations[obj].remove(attr);
+        new_context.atomic_attribute_derivations[attr].remove(obj);
+    }
 
-        context.set(Some(new_context));
-    };
+    context.set(Some(new_context));
+};
 
     view! {
         <div class="bg-gray-50 min-h-full p-2">
