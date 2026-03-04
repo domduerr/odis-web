@@ -5,7 +5,7 @@ use odis::FormalContext;
 
 use crate::components::exploration::ExplorationComp;
 use crate::components::graph::{GraphComp, LayoutAlgorithm};
-use crate::core::formatters::format_implication;
+use crate::core::formatters::format_attribute_set;
 
 fn format_object_set_table(indices: &BitSet, names: &[String]) -> String {
     let items: Vec<String> = indices
@@ -164,30 +164,28 @@ pub fn ConceptsView() -> impl IntoView {
                                     <span class="text-dhbw-gray font-medium">Concepts</span>
                                     <span class="text-dhbw-gray-50 text-sm ml-2">{format!("({} concepts)", concepts.len())}</span>
                                 </div>
-                                <div class="overflow-auto max-h-[70vh]">
-                                    <table class="w-full text-sm">
-                                        <thead class="bg-gray-50 sticky top-0">
-                                            <tr>
-                                                <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium w-16">#</th>
-                                                <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium">Extent{" "}(Objects)</th>
-                                                <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium">Intent{" "}(Attributes)</th>
+                                <table class="w-full text-sm table-fixed">
+                                    <thead class="bg-gray-50 sticky top-0">
+                                        <tr>
+                                            <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium w-16">#</th>
+                                            <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium w-1/2">Extent{" "}(Objects)</th>
+                                            <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium w-1/2">Intent{" "}(Attributes)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {concepts.into_iter().enumerate().map(|(idx, concept)| {
+                                            let obj_set = format_object_set_table(&concept.0, &objects);
+                                            let attr_set = format_attribute_set_table(&concept.1, &attributes);
+                                            view! {
+                                            <tr class="border-t border-dhbw-gray-25 hover:bg-gray-50">
+                                                <td class="px-4 py-2 text-dhbw-gray-50 w-16 align-top">{idx + 1}</td>
+                                                <td class="px-4 py-2 text-dhbw-gray w-1/2 align-top whitespace-normal break-all">{obj_set}</td>
+                                                <td class="px-4 py-2 text-dhbw-gray w-1/2 align-top whitespace-normal break-all">{attr_set}</td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {concepts.into_iter().enumerate().map(|(idx, concept)| {
-                                                let obj_set = format_object_set_table(&concept.0, &objects);
-                                                let attr_set = format_attribute_set_table(&concept.1, &attributes);
-                                                view! {
-                                                    <tr class="border-t border-dhbw-gray-25 hover:bg-gray-50">
-                                                        <td class="px-4 py-2 text-dhbw-gray-50">{idx + 1}</td>
-                                                        <td class="px-4 py-2 text-dhbw-gray">{obj_set}</td>
-                                                        <td class="px-4 py-2 text-dhbw-gray">{attr_set}</td>
-                                                    </tr>
-                                                }
-                                            }).collect::<Vec<_>>()}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </tbody>
+                                </table>
                             </div>
                         }.into_any())
                     } else {
@@ -223,33 +221,55 @@ pub fn CanonicalBasisView() -> impl IntoView {
         basis.set(Some(result));
     };
 
+    calc_basis();
+
     view! {
         <div class="bg-gray-50 min-h-full p-6">
-            <h2 class="text-dhbw-gray font-semibold text-lg mb-4">Canonical Basis</h2>
-            <button on:click=move |_| calc_basis() class="px-4 py-2 bg-dhbw-red text-white rounded hover:bg-red-700 text-sm mb-4">
-                Compute Canonical Base
-            </button>
             {move || {
                 if let Some(n) = basis.get() {
-                    let basis_clone: Vec<(usize, (BitSet, BitSet))> = basis.get().unwrap().into_iter().enumerate().collect();
+                    let len = n.len();
+                    let basis_clone: Vec<(usize, (BitSet, BitSet))> = n.into_iter().enumerate().collect();
+                    let ctx = effective_context.get();
+                    let attributes = ctx.attributes.clone();
+
                     Either::Left(view! {
-                        <p class="text-sm text-dhbw-gray-50 mb-2">{format!("The number of implications is: {}", n.len())}</p>
-                        <ul class="h-96 overflow-y-auto border border-dhbw-gray-25 rounded bg-white">
-                            {basis_clone.into_iter().map(|(idx, basis)| {
-                                let attributes = effective_context.get().attributes;
-                                let (premise_line, conclusion_line) = format_implication(&basis.0, &basis.1, &attributes, idx);
-                                view! {
-                                    <li class="p-2 border-b border-dhbw-gray-25 last:border-0 whitespace-pre text-sm font-mono">
-                                        {premise_line}
-                                        <br/>
-                                        {conclusion_line}
-                                    </li>
-                                }
-                            }).collect::<Vec<_>>()}
-                        </ul>
-                    })
+                        <div class="bg-white rounded-lg border border-dhbw-gray-25 overflow-hidden">
+                            <div class="bg-dhbw-gray-25 px-4 py-2 border-b border-dhbw-gray-25">
+                                <span class="text-dhbw-gray font-medium">Canonical Basis</span>
+                                <span class="text-dhbw-gray-50 text-sm ml-2">{format!("({} implications)", len)}</span>
+                            </div>
+                            <table class="w-full text-sm table-fixed">
+                                <thead class="bg-gray-50 sticky top-0">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium w-16">#</th>
+                                        <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium w-1/2">Premise</th>
+                                        <th class="px-4 py-2 text-center text-dhbw-gray-50 font-medium w-20"></th>
+                                        <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium w-1/2">Conclusion</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {basis_clone.into_iter().map(|(idx, implication)| {
+                                        let premise_set = format_attribute_set(&implication.0, &attributes);
+                                        let conclusion_set = format_attribute_set(&implication.1, &attributes);
+                                        view! {
+                                            <tr class="border-t border-dhbw-gray-25 hover:bg-gray-50">
+                                                <td class="px-4 py-2 text-dhbw-gray-50 w-16 align-top">{idx + 1}</td>
+                                                <td class="px-4 py-2 text-dhbw-gray font-mono w-1/2 align-top whitespace-normal break-all">{premise_set}</td>
+                                                <td class="px-4 py-2 text-dhbw-red font-mono text-center w-20 align-top">{"->"}</td>
+                                                <td class="px-4 py-2 text-dhbw-gray font-mono w-1/2 align-top whitespace-normal break-all">{conclusion_set}</td>
+                                            </tr>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </tbody>
+                            </table>
+                        </div>
+                    }.into_any())
                 } else {
-                    Either::Right(view! {<p class="text-dhbw-gray-50 text-sm">Click "Compute Canonical Base" to view all implications</p>})
+                    Either::Right(view! {
+                        <div class="bg-white rounded-lg border border-dhbw-gray-25 p-8 text-center">
+                            <p class="text-dhbw-gray font-medium mb-2">Loading canonical basis...</p>
+                        </div>
+                    }.into_any())
                 }
             }}
         </div>

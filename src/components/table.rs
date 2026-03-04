@@ -33,7 +33,6 @@ fn render_incidence_cell(
 fn render_object_row(
     row_idx: usize,
     obj_name: String,
-    attrs_count: usize,
     context: Signal<FormalContext<String>>,
     on_delete: impl Fn(usize) + Send + Clone + 'static,
     on_rename: impl Fn(usize, String) + Send + Clone + 'static,
@@ -75,7 +74,10 @@ fn render_object_row(
                 </div>
             </td>
             <For
-                each=move || 0..attrs_count
+                each=move || {
+                    let ctx = context.get();
+                    (0..ctx.attributes.len()).collect::<Vec<_>>()
+                }
                 key=|&col_idx| col_idx
                 children=move |col_idx| {
                     render_incidence_cell(row_idx, col_idx, context, on_toggle_closure.clone())
@@ -303,7 +305,6 @@ pub fn TableComp() -> impl IntoView {
                                 render_object_row(
                                     row_idx,
                                     obj_name,
-                                    effective_context.get().attributes.len(),
                                     effective_context,
                                     remove_object,
                                     change_object_name,
