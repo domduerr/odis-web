@@ -17,6 +17,35 @@ pub enum View {
 }
 
 #[component]
+fn SidebarItem(
+    is_active: impl Fn() -> bool + Send + 'static,
+    on_click: impl Fn() + Send + 'static,
+    icon_path: &'static str,
+    label: &'static str,
+) -> impl IntoView {
+    view! {
+        <button
+            on:click=move |_| on_click()
+            class=move || {
+                format!(
+                    "w-full text-left px-3 py-2.5 rounded-md text-sm transition-all flex items-center gap-2 {}",
+                    if is_active() {
+                        "bg-dhbw-red text-white font-medium shadow-sm"
+                    } else {
+                        "text-dhbw-gray hover:bg-dhbw-gray/5"
+                    }
+                )
+            }
+        >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={icon_path}></path>
+            </svg>
+            {label}
+        </button>
+    }
+}
+
+#[component]
 pub fn Header() -> impl IntoView {
     view! {
         <header class="h-16 bg-white border-b border-dhbw-gray-25 flex items-center justify-between px-8">
@@ -132,100 +161,40 @@ pub fn Sidebar(
 
                     <div class="border-b border-dhbw-gray-25 my-2"></div>
 
-                    <button
-                        on:click=move |_| current_view.set(View::FormalContext)
-                        class=move || {
-                            format!(
-                                "w-full text-left px-3 py-2.5 rounded-md text-sm transition-all flex items-center gap-2 {}",
-                                if is_formalcontext.get() {
-                                    "bg-dhbw-red text-white font-medium shadow-sm"
-                                } else {
-                                    "text-dhbw-gray hover:bg-dhbw-gray/5"
-                                }
-                            )
-                        }
-                    >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                        </svg>
-                        Formal Context
-                    </button>
+                    <SidebarItem
+                        is_active=move || is_formalcontext.get()
+                        on_click=move || current_view.set(View::FormalContext)
+                        icon_path="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        label="Formal Context"
+                    />
 
-                    <button
-                        on:click=move |_| current_view.set(View::Concepts)
-                        class=move || {
-                            format!(
-                                "w-full text-left px-3 py-2.5 rounded-md text-sm transition-all flex items-center gap-2 {}",
-                                if is_concepts.get() {
-                                    "bg-dhbw-red text-white font-medium shadow-sm"
-                                } else {
-                                    "text-dhbw-gray hover:bg-dhbw-gray/5"
-                                }
-                            )
-                        }
-                    >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                        </svg>
-                        Concepts
-                    </button>
+                    <SidebarItem
+                        is_active=move || is_concepts.get()
+                        on_click=move || current_view.set(View::Concepts)
+                        icon_path="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                        label="Concepts"
+                    />
 
-                    <button
-                        on:click=move |_| current_view.set(View::ConceptLattice)
-                        class=move || {
-                            format!(
-                                "w-full text-left px-3 py-2.5 rounded-md text-sm transition-all flex items-center gap-2 {}",
-                                if is_lattice.get() {
-                                    "bg-dhbw-red text-white font-medium shadow-sm"
-                                } else {
-                                    "text-dhbw-gray hover:bg-dhbw-gray/5"
-                                }
-                            )
-                        }
-                    >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path>
-                        </svg>
-                        Concept Lattice
-                    </button>
+                    <SidebarItem
+                        is_active=move || is_lattice.get()
+                        on_click=move || current_view.set(View::ConceptLattice)
+                        icon_path="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
+                        label="Concept Lattice"
+                    />
 
-                    <button
-                        on:click=move |_| current_view.set(View::CanonicalBasis)
-                        class=move || {
-                            format!(
-                                "w-full text-left px-3 py-2.5 rounded-md text-sm transition-all flex items-center gap-2 {}",
-                                if is_basis.get() {
-                                    "bg-dhbw-red text-white font-medium shadow-sm"
-                                } else {
-                                    "text-dhbw-gray hover:bg-dhbw-gray/5"
-                                }
-                            )
-                        }
-                    >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
-                        </svg>
-                        Canonical Basis
-                    </button>
+                    <SidebarItem
+                        is_active=move || is_basis.get()
+                        on_click=move || current_view.set(View::CanonicalBasis)
+                        icon_path="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                        label="Canonical Basis"
+                    />
 
-                    <button
-                        on:click=move |_| current_view.set(View::Exploration)
-                        class=move || {
-                            format!(
-                                "w-full text-left px-3 py-2.5 rounded-md text-sm transition-all flex items-center gap-2 {}",
-                                if is_exploration.get() {
-                                    "bg-dhbw-red text-white font-medium shadow-sm"
-                                } else {
-                                    "text-dhbw-gray hover:bg-dhbw-gray/5"
-                                }
-                            )
-                        }
-                    >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                        </svg>
-                        Exploration
-                    </button>
+                    <SidebarItem
+                        is_active=move || is_exploration.get()
+                        on_click=move || current_view.set(View::Exploration)
+                        icon_path="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        label="Exploration"
+                    />
                 </div>
             </nav>
         </aside>

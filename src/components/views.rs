@@ -4,16 +4,46 @@ use bit_set::BitSet;
 use leptos::wasm_bindgen::JsCast;
 use odis::FormalContext;
 
-use crate::components::context::create_default_context;
+use crate::components::exploration::ExplorationComp;
 use crate::components::graph::{GraphComp, LayoutAlgorithm};
+use crate::core::formatters::format_implication;
+
+fn format_object_set_table(indices: &BitSet, names: &[String]) -> String {
+    let items: Vec<String> = indices
+        .iter()
+        .filter(|&n| n < names.len())
+        .map(|n| names[n].clone())
+        .collect();
+
+    if items.is_empty() {
+        String::from("{}")
+    } else {
+        format!("{{{}}}", items.join(", "))
+    }
+}
+
+fn format_attribute_set_table(indices: &BitSet, names: &[String]) -> String {
+    let items: Vec<String> = indices
+        .iter()
+        .filter(|&n| n < names.len())
+        .map(|n| names[n].clone())
+        .collect();
+
+    if items.is_empty() {
+        String::from("{}")
+    } else {
+        format!("{{{}}}", items.join(", "))
+    }
+}
 
 #[component]
-pub fn FormalContextView(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoView {
-    let effective_context =
-        Signal::derive(move || context.get().unwrap_or_else(|| create_default_context()));
+pub fn FormalContextView() -> impl IntoView {
+    let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
+
+    let effective_context = Signal::derive(move || context.get());
 
     view! {
-        <div class="bg-white min-h-full p-6">
+        <div class="bg-gray-50 min-h-full p-6">
             <h2 class="text-dhbw-gray font-semibold text-lg mb-4">Formal Context</h2>
             <div class="bg-gray-50 rounded-lg p-4 border border-dhbw-gray-25">
                 {move || {
@@ -77,86 +107,103 @@ pub fn FormalContextView(context: RwSignal<Option<FormalContext<String>>>) -> im
 }
 
 #[component]
-pub fn ConceptsView(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoView {
-    let effective_context =
-        Signal::derive(move || context.get().unwrap_or_else(|| create_default_context()));
+pub fn ConceptsView() -> impl IntoView {
+    let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
+    let effective_context = Signal::derive(move || context.get());
 
-    let concepts = RwSignal::new(None);
+    let concepts_data: RwSignal<Option<Vec<(BitSet, BitSet)>>> = RwSignal::new(None);
+    let is_loaded = RwSignal::new(false);
+    let last_context_hash: RwSignal<u64> = RwSignal::new(0);
 
-    let calc_concepts = move || {
-        let current_context = effective_context.get();
-        let mut result: Vec<(BitSet, BitSet)> = current_context.fcbo_index_concepts().collect();
-        current_context.index_sort_lectic_order(&mut result);
-        concepts.set(Some(result));
+    let load_concepts = {
+        let concepts_data = concepts_data.clone();
+        let effective_context = effective_context.clone();
+        let is_loaded = is_loaded.clone();
+        move || {
+            if !is_loaded.get() {
+                let ctx = effective_context.get();
+                let mut result: Vec<(BitSet, BitSet)> = ctx.fcbo_index_concepts().collect();
+                ctx.index_sort_lectic_order(&mut result);
+                concepts_data.set(Some(result));
+                is_loaded.set(true);
+            }
+        }
     };
 
+    let context_version = use_context::<RwSignal<u64>>().unwrap_or_else(|| RwSignal::new(0));
+
+    let is_loaded_for_effect = is_loaded.clone();
+    let last_context_hash_for_effect = last_context_hash.clone();
+    let context_version_for_effect = context_version.clone();
+    let load_concepts_for_effect = load_concepts.clone();
+
+    Effect::new(move |_| {
+        let cv = context_version_for_effect.get();
+        let last = last_context_hash_for_effect.get_untracked();
+        if cv != last {
+            is_loaded_for_effect.set(false);
+            last_context_hash_for_effect.set(cv);
+        }
+    });
+
+    Effect::new(move |_| {
+        load_concepts_for_effect();
+    });
+
     view! {
-        <div class="bg-white min-h-full p-6">
-            <h2 class="text-dhbw-gray font-semibold text-lg mb-4">Concepts</h2>
-            <button on:click=move |_| calc_concepts() class="px-4 py-2 bg-dhbw-red text-white rounded hover:bg-red-700 text-sm mb-4">
-                Compute Concepts
-            </button>
+        <div class="bg-gray-50 min-h-full p-6">
             {move || {
-                if let Some(n) = concepts.get() {
-                    let concepts_clone: Vec<(usize, (BitSet, BitSet))> = concepts.get().unwrap().into_iter().enumerate().collect();
-                    Either::Left(view! {
-                        <p class="text-sm text-dhbw-gray-50 mb-2">{format!("The number of concepts is: {}", n.len())}</p>
-                        <ul class="h-96 overflow-y-auto border border-dhbw-gray-25 rounded bg-white">
-                            {concepts_clone.into_iter().map(|(idx, concept)| {
-                                view! {
-                                    <li class="p-2 border-b border-dhbw-gray-25 last:border-0 whitespace-pre text-sm font-mono">
-                                        {
-                                            let mut obj_string = String::new();
-                                            obj_string.push('{');
+                if is_loaded.get() {
+                    if let Some(concepts) = concepts_data.get() {
+                        let ctx = effective_context.get();
+                        let objects = ctx.objects.clone();
+                        let attributes = ctx.attributes.clone();
 
-                                            for n in &concept.0 {
-                                                obj_string.push_str(
-                                                    &(" ".to_string() + &effective_context.get().objects[n] + " ,")
-                                                );
-                                            }
-
-                                            if concept.0.len() > 0 {
-                                                obj_string.pop();
-                                            } else {
-                                                obj_string.push(' ');
-                                            }
-                                            obj_string.push('}');
-
-                                            let mut white_spaces = String::from("   ");
-                                            if idx >= 9 {
-                                                white_spaces.truncate(1);
-                                            }
-
-                                            format!("{}:{}{},", idx + 1, white_spaces, obj_string)
-                                        }
-                                        <br/>
-                                        {
-                                            let mut attr_string = String::new();
-                                            attr_string.push('{');
-
-                                            for n in &concept.1 {
-                                                attr_string.push_str(
-                                                    &(" ".to_string() + &effective_context.get().attributes[n] + " ,")
-                                                );
-                                            }
-                                            if concept.1.len() > 0 {
-                                                attr_string.pop();
-                                            } else {
-                                                attr_string.push(' ');
-                                            }
-                                            attr_string.push('}');
-
-                                            let white_spaces = String::from("      ");
-
-                                            format!("{}{}", white_spaces, attr_string)
-                                        }
-                                    </li>
-                                }
-                            }).collect::<Vec<_>>()}
-                        </ul>
-                    })
+                        Either::Left(view! {
+                            <div class="bg-white rounded-lg border border-dhbw-gray-25 overflow-hidden">
+                                <div class="bg-dhbw-gray-25 px-4 py-2 border-b border-dhbw-gray-25">
+                                    <span class="text-dhbw-gray font-medium">Concepts</span>
+                                    <span class="text-dhbw-gray-50 text-sm ml-2">{format!("({} concepts)", concepts.len())}</span>
+                                </div>
+                                <div class="overflow-auto max-h-[70vh]">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-50 sticky top-0">
+                                            <tr>
+                                                <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium w-16">#</th>
+                                                <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium">Extent{" "}(Objects)</th>
+                                                <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium">Intent{" "}(Attributes)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {concepts.into_iter().enumerate().map(|(idx, concept)| {
+                                                let obj_set = format_object_set_table(&concept.0, &objects);
+                                                let attr_set = format_attribute_set_table(&concept.1, &attributes);
+                                                view! {
+                                                    <tr class="border-t border-dhbw-gray-25 hover:bg-gray-50">
+                                                        <td class="px-4 py-2 text-dhbw-gray-50">{idx + 1}</td>
+                                                        <td class="px-4 py-2 text-dhbw-gray">{obj_set}</td>
+                                                        <td class="px-4 py-2 text-dhbw-gray">{attr_set}</td>
+                                                    </tr>
+                                                }
+                                            }).collect::<Vec<_>>()}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }.into_any())
+                    } else {
+                        Either::Right(view! {
+                            <div class="bg-white rounded-lg border border-dhbw-gray-25 p-8 text-center">
+                                <p class="text-dhbw-gray font-medium mb-2">Loading concepts...</p>
+                            </div>
+                        }.into_any())
+                    }
                 } else {
-                    Either::Right(view! {<p class="text-dhbw-gray-50 text-sm">Click "Compute Concepts" to view all concepts</p>})
+                    Either::Right(view! {
+                        <div class="bg-white rounded-lg border border-dhbw-gray-25 p-8 text-center">
+                            <p class="text-dhbw-gray font-medium mb-2">Loading concepts...</p>
+                        </div>
+                    }.into_any())
                 }
             }}
         </div>
@@ -164,9 +211,10 @@ pub fn ConceptsView(context: RwSignal<Option<FormalContext<String>>>) -> impl In
 }
 
 #[component]
-pub fn CanonicalBasisView(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoView {
-    let effective_context =
-        Signal::derive(move || context.get().unwrap_or_else(|| create_default_context()));
+pub fn CanonicalBasisView() -> impl IntoView {
+    let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
+
+    let effective_context = Signal::derive(move || context.get());
 
     let basis = RwSignal::new(None);
 
@@ -177,7 +225,7 @@ pub fn CanonicalBasisView(context: RwSignal<Option<FormalContext<String>>>) -> i
     };
 
     view! {
-        <div class="bg-white min-h-full p-6">
+        <div class="bg-gray-50 min-h-full p-6">
             <h2 class="text-dhbw-gray font-semibold text-lg mb-4">Canonical Basis</h2>
             <button on:click=move |_| calc_basis() class="px-4 py-2 bg-dhbw-red text-white rounded hover:bg-red-700 text-sm mb-4">
                 Compute Canonical Base
@@ -189,53 +237,13 @@ pub fn CanonicalBasisView(context: RwSignal<Option<FormalContext<String>>>) -> i
                         <p class="text-sm text-dhbw-gray-50 mb-2">{format!("The number of implications is: {}", n.len())}</p>
                         <ul class="h-96 overflow-y-auto border border-dhbw-gray-25 rounded bg-white">
                             {basis_clone.into_iter().map(|(idx, basis)| {
+                                let attributes = effective_context.get().attributes;
+                                let (premise_line, conclusion_line) = format_implication(&basis.0, &basis.1, &attributes, idx);
                                 view! {
                                     <li class="p-2 border-b border-dhbw-gray-25 last:border-0 whitespace-pre text-sm font-mono">
-                                        {
-                                            let mut premise = String::new();
-                                            premise.push('{');
-
-                                            for n in &basis.0 {
-                                                premise.push_str(
-                                                    &(" ".to_string() + &effective_context.get().attributes[n] + " ,")
-                                                );
-                                            }
-
-                                            if basis.0.len() > 0 {
-                                                premise.pop();
-                                            } else {
-                                                premise.push(' ');
-                                            }
-                                            premise.push('}');
-
-                                            let mut white_spaces = String::from("   ");
-                                            if idx >= 9 {
-                                                white_spaces.truncate(1);
-                                            }
-
-                                            format!("{}:{}{}", idx + 1, white_spaces, premise)
-                                        }
+                                        {premise_line}
                                         <br/>
-                                        {
-                                            let mut conclusion = String::new();
-                                            conclusion.push('{');
-
-                                            for n in &basis.1 {
-                                                conclusion.push_str(
-                                                    &(" ".to_string() + &effective_context.get().attributes[n] + " ,")
-                                                );
-                                            }
-                                            if basis.1.len() > 0 {
-                                                conclusion.pop();
-                                            } else {
-                                                conclusion.push(' ');
-                                            }
-                                            conclusion.push('}');
-
-                                            let white_spaces = String::from("      ");
-
-                                            format!("{}{}", white_spaces, conclusion)
-                                        }
+                                        {conclusion_line}
                                     </li>
                                 }
                             }).collect::<Vec<_>>()}
@@ -250,9 +258,10 @@ pub fn CanonicalBasisView(context: RwSignal<Option<FormalContext<String>>>) -> i
 }
 
 #[component]
-pub fn ConceptLatticeView(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoView {
-    let effective_context =
-        Signal::derive(move || context.get().unwrap_or_else(|| create_default_context()));
+pub fn ConceptLatticeView() -> impl IntoView {
+    let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
+
+    let effective_context = Signal::derive(move || context.get());
 
     let concepts = RwSignal::new(None);
     let concept_lattice = RwSignal::new(false);
@@ -266,7 +275,7 @@ pub fn ConceptLatticeView(context: RwSignal<Option<FormalContext<String>>>) -> i
     };
 
     view! {
-        <div class="bg-white min-h-full p-6">
+        <div class="bg-gray-50 min-h-full p-6">
             <h2 class="text-dhbw-gray font-semibold text-lg mb-4">Concept Lattice</h2>
             <div class="flex items-center gap-4 mb-4">
                 <label class="text-dhbw-gray font-medium">Layout Algorithm:</label>
@@ -322,27 +331,23 @@ pub fn ConceptLatticeView(context: RwSignal<Option<FormalContext<String>>>) -> i
 }
 
 #[component]
-pub fn ExplorationViewWrapper(context: RwSignal<Option<FormalContext<String>>>) -> impl IntoView {
-    let effective_context =
-        Signal::derive(move || context.get().unwrap_or_else(|| create_default_context()));
+pub fn ExplorationViewWrapper() -> impl IntoView {
+    let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
+
+    let effective_context = Signal::derive(move || context.get());
+
+    let row_key = RwSignal::new(0);
+    let object_names = RwSignal::new(Vec::new());
 
     view! {
-        <div class="bg-white min-h-full p-6">
+        <div class="bg-gray-50 min-h-full p-6">
             <h2 class="text-dhbw-gray font-semibold text-lg mb-4">Attribute Exploration</h2>
             <p class="text-dhbw-gray-50 text-sm mb-4">Attribute exploration allows you to interactively discover implications by validating proposed implications and providing counterexamples.</p>
 
-            <div class="bg-gray-50 rounded-lg p-6 border border-dhbw-gray-25">
-                <div class="text-center">
-                    <svg class="w-16 h-16 text-dhbw-gray-25 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                    <h3 class="text-dhbw-gray font-medium mb-2">Ready to Explore</h3>
-                    <p class="text-dhbw-gray-50 text-sm mb-4">Click the button below to start attribute exploration with the current formal context.</p>
-                    <button class="px-4 py-2 bg-dhbw-red text-white rounded hover:bg-red-700 text-sm">
-                        Start Exploration
-                    </button>
-                </div>
-            </div>
+            <ExplorationComp
+                row_key=row_key
+                object_names=object_names
+            />
 
             <div class="mt-6 grid grid-cols-3 gap-4">
                 <div class="bg-gray-50 rounded-lg p-4 border border-dhbw-gray-25 text-center">
