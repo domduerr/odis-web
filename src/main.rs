@@ -49,11 +49,13 @@ pub fn App() -> impl IntoView {
 
     let on_context_loaded = {
         let context = context.clone();
+        let context_version = context_version.clone();
         move |new_context: Option<FormalContext<String>>| {
             logging::log!("on_context_loaded called with: {:?}", new_context.is_some());
             if let Some(ctx) = new_context {
                 logging::log!("Context loaded - Objects: {}, Attributes: {}", ctx.objects.len(), ctx.attributes.len());
                 context.set(ctx);
+                context_version.update(|v| *v += 1);
             } else {
                 logging::log!("Failed to parse context, keeping current");
             }
@@ -63,13 +65,14 @@ pub fn App() -> impl IntoView {
     let on_save_context = {
         let context = context.clone();
         move |_| {
-            let ctx = context.get();
-            let content = crate::core::export::generate_cxt_string(&ctx);
-            let filename = crate::core::export::generate_cxt_filename(&ctx);
-            
-            if let Err(e) = crate::utils::browser::trigger_text_download(&content, &filename, "text/plain") {
-                logging::log!("Failed to trigger download: {:?}", e);
-            }
+            context.with(|ctx| {
+                let content = crate::core::export::generate_cxt_string(ctx);
+                let filename = crate::core::export::generate_cxt_filename(ctx);
+                
+                if let Err(e) = crate::utils::browser::trigger_text_download(&content, &filename, "text/plain") {
+                    logging::log!("Failed to trigger download: {:?}", e);
+                }
+            });
         }
     };
 

@@ -39,38 +39,37 @@ fn format_attribute_set_table(indices: &BitSet, names: &[String]) -> String {
 pub fn FormalContextView() -> impl IntoView {
     let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
 
-    let effective_context = Signal::derive(move || context.get());
-
     view! {
         <div class="bg-gray-50 min-h-full p-6">
             <h2 class="text-dhbw-gray font-semibold text-lg mb-4">Formal Context</h2>
             <div class="bg-gray-50 rounded-lg p-4 border border-dhbw-gray-25">
                 {move || {
-                    let ctx = effective_context.get();
-                    view! {
-                        <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <span class="text-dhbw-gray-50 font-medium">Objects:</span>
-                                <span class="text-dhbw-gray ml-2">{ctx.objects.len()}</span>
+                    context.with(|ctx| {
+                        view! {
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span class="text-dhbw-gray-50 font-medium">Objects:</span>
+                                    <span class="text-dhbw-gray ml-2">{ctx.objects.len()}</span>
+                                </div>
+                                <div>
+                                    <span class="text-dhbw-gray-50 font-medium">Attributes:</span>
+                                    <span class="text-dhbw-gray ml-2">{ctx.attributes.len()}</span>
+                                </div>
+                                <div>
+                                    <span class="text-dhbw-gray-50 font-medium">Incidence:</span>
+                                    <span class="text-dhbw-gray ml-2">{ctx.incidence.len()}</span>
+                                </div>
+                                <div>
+                                    <span class="text-dhbw-gray-50 font-medium">Density:</span>
+                                    <span class="text-dhbw-gray ml-2">{if ctx.objects.len() > 0 && ctx.attributes.len() > 0 {
+                                        format!("{:.2}%", (ctx.incidence.len() as f64 / (ctx.objects.len() * ctx.attributes.len()) as f64) * 100.0)
+                                    } else {
+                                        "0%".to_string()
+                                    }}</span>
+                                </div>
                             </div>
-                            <div>
-                                <span class="text-dhbw-gray-50 font-medium">Attributes:</span>
-                                <span class="text-dhbw-gray ml-2">{ctx.attributes.len()}</span>
-                            </div>
-                            <div>
-                                <span class="text-dhbw-gray-50 font-medium">Incidence:</span>
-                                <span class="text-dhbw-gray ml-2">{ctx.incidence.len()}</span>
-                            </div>
-                            <div>
-                                <span class="text-dhbw-gray-50 font-medium">Density:</span>
-                                <span class="text-dhbw-gray ml-2">{if ctx.objects.len() > 0 && ctx.attributes.len() > 0 {
-                                    format!("{:.2}%", (ctx.incidence.len() as f64 / (ctx.objects.len() * ctx.attributes.len()) as f64) * 100.0)
-                                } else {
-                                    "0%".to_string()
-                                }}</span>
-                            </div>
-                        </div>
-                    }
+                        }
+                    })
                 }}
             </div>
 
@@ -78,12 +77,14 @@ pub fn FormalContextView() -> impl IntoView {
                 <h3 class="text-dhbw-gray font-medium mb-3">Objects</h3>
                 <ul class="border border-dhbw-gray-25 rounded divide-y divide-dhbw-gray-25">
                     {move || {
-                        let objs: Vec<_> = effective_context.get().objects.iter().cloned().collect();
-                        objs.into_iter().map(|name| {
-                            view! {
-                                <li class="px-4 py-2 text-sm text-dhbw-gray">{name}</li>
-                            }
-                        }).collect::<Vec<_>>()
+                        context.with(|ctx| {
+                            let objs: Vec<_> = ctx.objects.iter().cloned().collect();
+                            objs.into_iter().map(|name| {
+                                view! {
+                                    <li class="px-4 py-2 text-sm text-dhbw-gray">{name}</li>
+                                }
+                            }).collect::<Vec<_>>()
+                        })
                     }}
                 </ul>
             </div>
@@ -92,12 +93,14 @@ pub fn FormalContextView() -> impl IntoView {
                 <h3 class="text-dhbw-gray font-medium mb-3">Attributes</h3>
                 <ul class="border border-dhbw-gray-25 rounded divide-y divide-dhbw-gray-25">
                     {move || {
-                        let attrs: Vec<_> = effective_context.get().attributes.iter().cloned().collect();
-                        attrs.into_iter().map(|name| {
-                            view! {
-                                <li class="px-4 py-2 text-sm text-dhbw-gray">{name}</li>
-                            }
-                        }).collect::<Vec<_>>()
+                        context.with(|ctx| {
+                            let attrs: Vec<_> = ctx.attributes.iter().cloned().collect();
+                            attrs.into_iter().map(|name| {
+                                view! {
+                                    <li class="px-4 py-2 text-sm text-dhbw-gray">{name}</li>
+                                }
+                            }).collect::<Vec<_>>()
+                        })
                     }}
                 </ul>
             </div>
@@ -108,22 +111,22 @@ pub fn FormalContextView() -> impl IntoView {
 #[component]
 pub fn ConceptsView() -> impl IntoView {
     let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
-    let effective_context = Signal::derive(move || context.get());
 
     let concepts_data: RwSignal<Option<Vec<(BitSet, BitSet)>>> = RwSignal::new(None);
     let is_loaded = RwSignal::new(false);
     let last_context_hash: RwSignal<u64> = RwSignal::new(0);
 
     let load_concepts = {
+        let context = context.clone();
         let concepts_data = concepts_data.clone();
-        let effective_context = effective_context.clone();
         let is_loaded = is_loaded.clone();
         move || {
             if !is_loaded.get() {
-                let ctx = effective_context.get();
-                let mut result: Vec<(BitSet, BitSet)> = ctx.fcbo_index_concepts().collect();
-                ctx.index_sort_lectic_order(&mut result);
-                concepts_data.set(Some(result));
+                context.with(|ctx| {
+                    let mut result: Vec<(BitSet, BitSet)> = ctx.fcbo_index_concepts().collect();
+                    ctx.index_sort_lectic_order(&mut result);
+                    concepts_data.set(Some(result));
+                });
                 is_loaded.set(true);
             }
         }
@@ -154,9 +157,7 @@ pub fn ConceptsView() -> impl IntoView {
             {move || {
                 if is_loaded.get() {
                     if let Some(concepts) = concepts_data.get() {
-                        let ctx = effective_context.get();
-                        let objects = ctx.objects.clone();
-                        let attributes = ctx.attributes.clone();
+                        let (objects, attributes) = context.with(|ctx| (ctx.objects.clone(), ctx.attributes.clone()));
 
                         Either::Left(view! {
                             <div class="bg-white rounded-lg border border-dhbw-gray-25 overflow-hidden">
@@ -211,14 +212,16 @@ pub fn ConceptsView() -> impl IntoView {
 pub fn CanonicalBasisView() -> impl IntoView {
     let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
 
-    let effective_context = Signal::derive(move || context.get());
-
     let basis = RwSignal::new(None);
 
-    let calc_basis = move || {
-        let current_context = effective_context.get();
-        let result = current_context.index_canonical_basis();
-        basis.set(Some(result));
+    let calc_basis = {
+        let context = context.clone();
+        move || {
+            context.with(|ctx| {
+                let result = ctx.index_canonical_basis();
+                basis.set(Some(result));
+            });
+        }
     };
 
     calc_basis();
@@ -229,8 +232,7 @@ pub fn CanonicalBasisView() -> impl IntoView {
                 if let Some(n) = basis.get() {
                     let len = n.len();
                     let basis_clone: Vec<(usize, (BitSet, BitSet))> = n.into_iter().enumerate().collect();
-                    let ctx = effective_context.get();
-                    let attributes = ctx.attributes.clone();
+                    let attributes = context.with(|ctx| ctx.attributes.clone());
 
                     Either::Left(view! {
                         <div class="bg-white rounded-lg border border-dhbw-gray-25 overflow-hidden">
@@ -280,16 +282,18 @@ pub fn CanonicalBasisView() -> impl IntoView {
 pub fn ConceptLatticeView() -> impl IntoView {
     let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
 
-    let effective_context = Signal::derive(move || context.get());
-
     let concepts = RwSignal::new(None);
     let layout_algorithm = RwSignal::new(LayoutAlgorithm::Sugiyama);
 
-    let calc_concepts = move || {
-        let current_context = effective_context.get();
-        let mut result: Vec<(BitSet, BitSet)> = current_context.fcbo_index_concepts().collect();
-        current_context.index_sort_lectic_order(&mut result);
-        concepts.set(Some(result));
+    let calc_concepts = {
+        let context = context.clone();
+        move || {
+            context.with(|ctx| {
+                let mut result: Vec<(BitSet, BitSet)> = ctx.fcbo_index_concepts().collect();
+                ctx.index_sort_lectic_order(&mut result);
+                concepts.set(Some(result));
+            });
+        }
     };
 
     calc_concepts();
@@ -298,10 +302,11 @@ pub fn ConceptLatticeView() -> impl IntoView {
         <div class="bg-gray-50 min-h-full p-6">
             {move || {
                 if let Some(concepts_data) = concepts.get() {
+                    let ctx = context.get();
                     view! {
                         <GraphComp
                             concepts=concepts_data
-                            context=effective_context.get()
+                            context=ctx
                             layout_algorithm=layout_algorithm
                         />
                     }.into_any()
@@ -319,8 +324,6 @@ pub fn ConceptLatticeView() -> impl IntoView {
 pub fn ExplorationViewWrapper() -> impl IntoView {
     let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
 
-    let effective_context = Signal::derive(move || context.get());
-
     let row_key = RwSignal::new(0);
     let object_names = RwSignal::new(Vec::new());
 
@@ -336,11 +339,11 @@ pub fn ExplorationViewWrapper() -> impl IntoView {
 
             <div class="mt-6 grid grid-cols-3 gap-4">
                 <div class="bg-gray-50 rounded-lg p-4 border border-dhbw-gray-25 text-center">
-                    <div class="text-2xl font-bold text-dhbw-red">{effective_context.get().attributes.len()}</div>
+                    <div class="text-2xl font-bold text-dhbw-red">{context.with(|ctx| ctx.attributes.len())}</div>
                     <div class="text-sm text-dhbw-gray-50">Attributes</div>
                 </div>
                 <div class="bg-gray-50 rounded-lg p-4 border border-dhbw-gray-25 text-center">
-                    <div class="text-2xl font-bold text-dhbw-red">{effective_context.get().objects.len()}</div>
+                    <div class="text-2xl font-bold text-dhbw-red">{context.with(|ctx| ctx.objects.len())}</div>
                     <div class="text-sm text-dhbw-gray-50">Objects</div>
                 </div>
                 <div class="bg-gray-50 rounded-lg p-4 border border-dhbw-gray-25 text-center">

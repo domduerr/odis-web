@@ -188,13 +188,14 @@ pub fn GraphComp(
 
     Effect::new(move || {
         let dims = dimensions.get();
+        let algo = layout_algorithm.get();
         let layout_dims = LayoutDimensions {
             width: dims.width,
             height: dims.height,
             margin: dims.margin,
         };
 
-        let node_positions_scaled: Vec<(usize, f64, f64)> = match algorithm {
+        let node_positions_scaled: Vec<(usize, f64, f64)> = match algo {
             LayoutAlgorithm::DimDraw => compute_dimdraw_layout(&edges_clone, layout_dims),
             LayoutAlgorithm::Sugiyama => {
                 compute_sugiyama_layout(&edges_clone, layout_dims, graph_nodes_clone.len())

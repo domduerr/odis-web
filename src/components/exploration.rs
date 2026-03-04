@@ -36,7 +36,7 @@ pub fn ExplorationComp(
             );
         });
 
-        let state = machine.get().state.clone();
+        let state = machine.with(|m| m.state.clone());
         match state {
             ExplorationState::ValidatingImplication { .. } => view_state.set(ViewState::Validating),
             ExplorationState::Finished => view_state.set(ViewState::Finished),
@@ -50,7 +50,7 @@ pub fn ExplorationComp(
             let _ = m.process_input(&ctx, crate::core::exploration_state::ExplorationInput::Yes);
         });
 
-        let state = machine.get().state.clone();
+        let state = machine.with(|m| m.state.clone());
         match state {
             ExplorationState::ValidatingImplication { .. } => view_state.set(ViewState::Validating),
             ExplorationState::Finished => view_state.set(ViewState::Finished),
@@ -60,9 +60,9 @@ pub fn ExplorationComp(
 
     let handle_no = move |_| {
         checkboxes.set(Vec::new());
-        let ctx = context.get();
-        for n in 0..ctx.attributes.len() {
-            let is_checked = machine.get().temp_set.contains(n);
+        let attr_len = context.with(|ctx| ctx.attributes.len());
+        for n in 0..attr_len {
+            let is_checked = machine.with(|m| m.temp_set.contains(n));
             checkboxes
                 .write()
                 .push((box_key.get(), RwSignal::new(is_checked)));
@@ -99,7 +99,7 @@ pub fn ExplorationComp(
             );
         });
 
-        let state = machine.get().state.clone();
+        let state = machine.with(|m| m.state.clone());
         match state {
             ExplorationState::ValidatingImplication { .. } => view_state.set(ViewState::Validating),
             ExplorationState::Finished => view_state.set(ViewState::Finished),
@@ -142,28 +142,32 @@ pub fn ExplorationComp(
                 <p class="text-dhbw-gray mb-4">Is the following implication valid?</p>
                 <div class="bg-dhbw-gray-5 p-4 rounded mb-4 font-mono text-sm">
                     <p class="mb-2">{move || {
-                        let machine = machine.get();
-                        let ctx = context.get();
-                        let mut premise_string: Vec<String> = Vec::new();
-                        for index in &machine.temp_set {
-                            if index < ctx.attributes.len() {
-                                premise_string.push(ctx.attributes[index].to_string());
-                            }
-                        }
-                        format!("{:?}", premise_string)
+                        machine.with(|m| {
+                            context.with(|ctx| {
+                                let mut premise_string: Vec<String> = Vec::new();
+                                for index in &m.temp_set {
+                                    if index < ctx.attributes.len() {
+                                        premise_string.push(ctx.attributes[index].to_string());
+                                    }
+                                }
+                                format!("{:?}", premise_string)
+                            })
+                        })
                     }}</p>
                     <p class="text-dhbw-red font-semibold">=></p>
                     <p>{move || {
-                        let machine = machine.get();
-                        let ctx = context.get();
-                        let conclusion = machine.temp_hull.difference(&machine.temp_set).collect::<BitSet>();
-                        let mut conclusion_string: Vec<String> = Vec::new();
-                        for index in &conclusion {
-                            if index < ctx.attributes.len() {
-                                conclusion_string.push(ctx.attributes[index].to_string());
-                            }
-                        }
-                        format!("{:?}", conclusion_string)
+                        machine.with(|m| {
+                            context.with(|ctx| {
+                                let conclusion = m.temp_hull.difference(&m.temp_set).collect::<BitSet>();
+                                let mut conclusion_string: Vec<String> = Vec::new();
+                                for index in &conclusion {
+                                    if index < ctx.attributes.len() {
+                                        conclusion_string.push(ctx.attributes[index].to_string());
+                                    }
+                                }
+                                format!("{:?}", conclusion_string)
+                            })
+                        })
                     }}</p>
                 </div>
 
@@ -205,12 +209,12 @@ pub fn ExplorationComp(
                             <tr>
                                 <td class="p-2 border-r border-dhbw-gray-25"></td>
                                 <For
-                                    each=move || 0..context.get().attributes.len()
+                                    each=move || context.with(|ctx| 0..ctx.attributes.len())
                                     key=move |key| *key
                                     children=move |index| {
                                         view! {
                                             <td class="p-2 text-sm font-medium text-dhbw-gray whitespace-nowrap">
-                                                <p>{move || context.get().attributes[index].to_string()}</p>
+                                                <p>{move || context.with(|ctx| ctx.attributes[index].to_string())}</p>
                                             </td>
                                         }
                                     }

@@ -12,13 +12,14 @@ pub fn DownloadComp() -> impl IntoView {
 
     view! {
         <button on:click=move |_| {
-            let ctx = context.read_only().get();
-            let content = generate_cxt_string(&ctx);
-            let filename = generate_cxt_filename(&ctx);
+            context.with(|ctx| {
+                let content = generate_cxt_string(ctx);
+                let filename = generate_cxt_filename(ctx);
 
-            if let Err(e) = trigger_text_download(&content, &filename, "text/plain") {
-                leptos::logging::log!("Failed to trigger download: {:?}", e);
-            }
+                if let Err(e) = trigger_text_download(&content, &filename, "text/plain") {
+                    leptos::logging::log!("Failed to trigger download: {:?}", e);
+                }
+            });
         } id="download_context">"Download Context"</button>
         <a
             node_ref=link
