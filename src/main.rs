@@ -50,14 +50,12 @@ pub fn App() -> impl IntoView {
     let on_context_loaded = {
         let context = context.clone();
         let context_version = context_version.clone();
+        let current_view = current_view.clone();
         move |new_context: Option<FormalContext<String>>| {
-            logging::log!("on_context_loaded called with: {:?}", new_context.is_some());
             if let Some(ctx) = new_context {
-                logging::log!("Context loaded - Objects: {}, Attributes: {}", ctx.objects.len(), ctx.attributes.len());
                 context.set(ctx);
                 context_version.update(|v| *v += 1);
-            } else {
-                logging::log!("Failed to parse context, keeping current");
+                current_view.set(View::FormalContext);
             }
         }
     };

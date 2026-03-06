@@ -45,12 +45,14 @@ fn SidebarItem(
     }
 }
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[component]
 pub fn Header() -> impl IntoView {
     view! {
         <header class="h-16 bg-white border-b border-dhbw-gray-25 flex items-center justify-between px-8">
             <h1 class="text-dhbw-gray font-bold text-xl">Odis-Web</h1>
-            <span class="text-dhbw-gray-50 font-mono text-sm">v0.1.0</span>
+            <span class="text-dhbw-gray-50 font-mono text-sm">{VERSION}</span>
         </header>
     }
 }
@@ -65,50 +67,38 @@ pub fn Sidebar(
     let on_context_loaded_rc = Rc::new(on_context_loaded);
 
     let handle_file_change = move |_ev| {
-        logging::log!("File change event fired");
-        
         let file_input = file_input_element.get();
         if file_input.is_none() {
-            logging::log!("File input not found");
             return;
         }
 
         let files = file_input.as_ref().unwrap().files();
-        logging::log!("Files: {:?}", files.is_some());
         
         if files.is_none() {
-            logging::log!("No files");
             return;
         }
 
         let files_list = files.as_ref().unwrap();
         let file_count = files_list.length();
-        logging::log!("File count: {}", file_count);
         
         if file_count == 0 {
-            logging::log!("No files selected (count is 0)");
             return;
         }
 
         let file = files_list.item(0);
         
         if file.is_none() {
-            logging::log!("No file selected (item is None)");
             return;
         }
 
         let file = file.unwrap();
-        logging::log!("File selected, name: {:?}", file.name());
         
         let on_context_loaded_clone = Rc::clone(&on_context_loaded_rc);
         spawn_local(async move {
-            logging::log!("Starting to read file...");
             let contents = js_fn::file_contents(file.clone()).await;
-            logging::log!("File contents length: {}", contents.len());
             
             match FormalContext::<String>::from(contents.as_bytes()) {
                 Ok(ctx) => {
-                    logging::log!("Context parsed successfully, objects: {}, attributes: {}", ctx.objects.len(), ctx.attributes.len());
                     on_context_loaded_clone(Some(ctx));
                 }
                 Err(e) => {

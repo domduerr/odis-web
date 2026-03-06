@@ -40,7 +40,7 @@ pub fn FormalContextView() -> impl IntoView {
     let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
 
     view! {
-        <div class="bg-gray-50 min-h-full p-6">
+        <div class="h-full">
             <h2 class="text-dhbw-gray font-semibold text-lg mb-4">Formal Context</h2>
             <div class="bg-gray-50 rounded-lg p-4 border border-dhbw-gray-25">
                 {move || {
@@ -153,7 +153,7 @@ pub fn ConceptsView() -> impl IntoView {
     });
 
     view! {
-        <div class="bg-gray-50 min-h-full p-6">
+        <div class="h-full">
             {move || {
                 if is_loaded.get() {
                     if let Some(concepts) = concepts_data.get() {
@@ -227,7 +227,7 @@ pub fn CanonicalBasisView() -> impl IntoView {
     calc_basis();
 
     view! {
-        <div class="bg-gray-50 min-h-full p-6">
+        <div class="h-full">
             {move || {
                 if let Some(n) = basis.get() {
                     let len = n.len();
@@ -257,7 +257,7 @@ pub fn CanonicalBasisView() -> impl IntoView {
                                             <tr class="border-t border-dhbw-gray-25 hover:bg-gray-50">
                                                 <td class="px-4 py-2 text-dhbw-gray-50 w-16 align-top">{idx + 1}</td>
                                                 <td class="px-4 py-2 text-dhbw-gray font-mono w-1/2 align-top whitespace-normal break-all">{premise_set}</td>
-                                                <td class="px-4 py-2 text-dhbw-red font-mono text-center w-20 align-top">{"->"}</td>
+                                                <td class="px-4 py-2 text-black text-center w-20 align-top">{"→"}</td>
                                                 <td class="px-4 py-2 text-dhbw-gray font-mono w-1/2 align-top whitespace-normal break-all">{conclusion_set}</td>
                                             </tr>
                                         }
@@ -305,7 +305,7 @@ pub fn ConceptLatticeView() -> impl IntoView {
     });
 
     view! {
-        <div class="bg-gray-50 min-h-full p-6">
+        <div class="h-full">
             {move || {
                 if let Some(concepts_data) = concepts.get() {
                     let ctx = context.get();
@@ -328,35 +328,7 @@ pub fn ConceptLatticeView() -> impl IntoView {
 
 #[component]
 pub fn ExplorationViewWrapper() -> impl IntoView {
-    let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
-
-    let row_key = RwSignal::new(0);
-    let object_names = RwSignal::new(Vec::new());
-
     view! {
-        <div class="bg-gray-50 min-h-full p-6">
-            <h2 class="text-dhbw-gray font-semibold text-lg mb-4">Attribute Exploration</h2>
-            <p class="text-dhbw-gray-50 text-sm mb-4">Attribute exploration allows you to interactively discover implications by validating proposed implications and providing counterexamples.</p>
-
-            <ExplorationComp
-                row_key=row_key
-                object_names=object_names
-            />
-
-            <div class="mt-6 grid grid-cols-3 gap-4">
-                <div class="bg-gray-50 rounded-lg p-4 border border-dhbw-gray-25 text-center">
-                    <div class="text-2xl font-bold text-dhbw-red">{context.with(|ctx| ctx.attributes.len())}</div>
-                    <div class="text-sm text-dhbw-gray-50">Attributes</div>
-                </div>
-                <div class="bg-gray-50 rounded-lg p-4 border border-dhbw-gray-25 text-center">
-                    <div class="text-2xl font-bold text-dhbw-red">{context.with(|ctx| ctx.objects.len())}</div>
-                    <div class="text-sm text-dhbw-gray-50">Objects</div>
-                </div>
-                <div class="bg-gray-50 rounded-lg p-4 border border-dhbw-gray-25 text-center">
-                    <div class="text-2xl font-bold text-dhbw-red">?</div>
-                    <div class="text-sm text-dhbw-gray-50">Implications</div>
-                </div>
-            </div>
-        </div>
+        <ExplorationComp />
     }
 }

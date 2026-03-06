@@ -1,7 +1,6 @@
 use core::f64;
 
 use bit_set::BitSet;
-use leptos::wasm_bindgen::closure::Closure;
 use leptos::wasm_bindgen::JsCast;
 use leptos::{either::Either, prelude::*};
 use odis::{FormalContext, Lattice};
@@ -229,66 +228,63 @@ pub fn GraphComp(
     let resize_start_height2 = resize_start_height.clone();
     let dimensions2 = dimensions.clone();
 
-    let document = window().document().unwrap();
-    let body = document.body().unwrap();
+    let move_handle =
+        window_event_listener(leptos::ev::mousemove, move |ev: leptos::ev::MouseEvent| {
+            if is_resizing2.get_untracked() {
+                let rtype = resize_type2.get_untracked();
 
-    let move_closure = Closure::wrap(Box::new(move |ev: web_sys::MouseEvent| {
-        if is_resizing2.get() {
-            let rtype = resize_type2.get();
-
-            if rtype == 1 {
-                let delta = ev.client_x() as f64 - resize_start_x2.get();
-                let new_width = (resize_start_width2.get() + delta).clamp(200.0, 2000.0);
-                dimensions2.update(|d| {
-                    d.width = new_width;
-                });
-                if let Some(input) = width_input_ref2.get() {
-                    input.set_value(&new_width.to_string());
-                }
-            } else if rtype == 2 {
-                let delta = ev.client_y() as f64 - resize_start_y2.get();
-                let new_height = (resize_start_height2.get() + delta).clamp(200.0, 2000.0);
-                dimensions2.update(|d| {
-                    d.height = new_height;
-                });
-                if let Some(input) = height_input_ref2.get() {
-                    input.set_value(&new_height.to_string());
-                }
-            } else if rtype == 3 {
-                let delta_x = ev.client_x() as f64 - resize_start_x2.get();
-                let delta_y = ev.client_y() as f64 - resize_start_y2.get();
-                let avg_delta = (delta_x + delta_y) / 2.0;
-                let new_width = (resize_start_width2.get() + avg_delta).clamp(200.0, 2000.0);
-                let new_height = (resize_start_height2.get() + avg_delta).clamp(200.0, 2000.0);
-                dimensions2.update(|d| {
-                    d.width = new_width;
-                    d.height = new_height;
-                });
-                if let Some(input) = width_input_ref2.get() {
-                    input.set_value(&new_width.to_string());
-                }
-                if let Some(input) = height_input_ref2.get() {
-                    input.set_value(&new_height.to_string());
+                if rtype == 1 {
+                    let delta = ev.client_x() as f64 - resize_start_x2.get_untracked();
+                    let new_width =
+                        (resize_start_width2.get_untracked() + delta).clamp(200.0, 2000.0);
+                    dimensions2.update(|d| {
+                        d.width = new_width;
+                    });
+                    if let Some(input) = width_input_ref2.get_untracked() {
+                        input.set_value(&new_width.to_string());
+                    }
+                } else if rtype == 2 {
+                    let delta = ev.client_y() as f64 - resize_start_y2.get_untracked();
+                    let new_height =
+                        (resize_start_height2.get_untracked() + delta).clamp(200.0, 2000.0);
+                    dimensions2.update(|d| {
+                        d.height = new_height;
+                    });
+                    if let Some(input) = height_input_ref2.get_untracked() {
+                        input.set_value(&new_height.to_string());
+                    }
+                } else if rtype == 3 {
+                    let delta_x = ev.client_x() as f64 - resize_start_x2.get_untracked();
+                    let delta_y = ev.client_y() as f64 - resize_start_y2.get_untracked();
+                    let avg_delta = (delta_x + delta_y) / 2.0;
+                    let new_width =
+                        (resize_start_width2.get_untracked() + avg_delta).clamp(200.0, 2000.0);
+                    let new_height =
+                        (resize_start_height2.get_untracked() + avg_delta).clamp(200.0, 2000.0);
+                    dimensions2.update(|d| {
+                        d.width = new_width;
+                        d.height = new_height;
+                    });
+                    if let Some(input) = width_input_ref2.get_untracked() {
+                        input.set_value(&new_width.to_string());
+                    }
+                    if let Some(input) = height_input_ref2.get_untracked() {
+                        input.set_value(&new_height.to_string());
+                    }
                 }
             }
-        }
-    }) as Box<dyn FnMut(_)>);
+        });
 
-    let up_closure = Closure::wrap(Box::new(move |_ev: web_sys::MouseEvent| {
-        is_resizing.set(false);
-        resize_type.set(0);
-    }) as Box<dyn FnMut(_)>);
+    let up_handle =
+        window_event_listener(leptos::ev::mouseup, move |_ev: leptos::ev::MouseEvent| {
+            is_resizing.set(false);
+            resize_type.set(0);
+        });
 
-    let _ = document
-        .add_event_listener_with_callback("mousemove", move_closure.as_ref().unchecked_ref());
-    let _ =
-        document.add_event_listener_with_callback("mouseup", up_closure.as_ref().unchecked_ref());
-    let _ =
-        body.add_event_listener_with_callback("mousemove", move_closure.as_ref().unchecked_ref());
-    let _ = body.add_event_listener_with_callback("mouseup", up_closure.as_ref().unchecked_ref());
-
-    move_closure.forget();
-    up_closure.forget();
+    on_cleanup(move || {
+        move_handle.remove();
+        up_handle.remove();
+    });
 
     view! {
         <div class="flex items-start">

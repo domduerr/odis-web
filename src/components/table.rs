@@ -250,7 +250,7 @@ pub fn TableComp() -> impl IntoView {
     };
 
     view! {
-        <div class="bg-gray-50 min-h-full p-2">
+        <div class="h-full">
             <div class="overflow-auto">
                 <table class="border-collapse">
                     <tbody>
