@@ -61,7 +61,7 @@ pub fn FormalContextView() -> impl IntoView {
                                 </div>
                                 <div>
                                     <span class="text-dhbw-gray-50 font-medium">Density:</span>
-                                    <span class="text-dhbw-gray ml-2">{if ctx.objects.len() > 0 && ctx.attributes.len() > 0 {
+                                    <span class="text-dhbw-gray ml-2">{if !ctx.objects.is_empty() && !ctx.attributes.is_empty() {
                                         format!("{:.2}%", (ctx.incidence.len() as f64 / (ctx.objects.len() * ctx.attributes.len()) as f64) * 100.0)
                                     } else {
                                         "0%".to_string()
@@ -78,7 +78,7 @@ pub fn FormalContextView() -> impl IntoView {
                 <ul class="border border-dhbw-gray-25 rounded divide-y divide-dhbw-gray-25">
                     {move || {
                         context.with(|ctx| {
-                            let objs: Vec<_> = ctx.objects.iter().cloned().collect();
+                            let objs: Vec<_> = ctx.objects.to_vec();
                             objs.into_iter().map(|name| {
                                 view! {
                                     <li class="px-4 py-2 text-sm text-dhbw-gray">{name}</li>
@@ -94,7 +94,7 @@ pub fn FormalContextView() -> impl IntoView {
                 <ul class="border border-dhbw-gray-25 rounded divide-y divide-dhbw-gray-25">
                     {move || {
                         context.with(|ctx| {
-                            let attrs: Vec<_> = ctx.attributes.iter().cloned().collect();
+                            let attrs: Vec<_> = ctx.attributes.to_vec();
                             attrs.into_iter().map(|name| {
                                 view! {
                                     <li class="px-4 py-2 text-sm text-dhbw-gray">{name}</li>
@@ -117,13 +117,10 @@ pub fn ConceptsView() -> impl IntoView {
     let last_context_hash: RwSignal<u64> = RwSignal::new(0);
 
     let load_concepts = {
-        let context = context.clone();
-        let concepts_data = concepts_data.clone();
-        let is_loaded = is_loaded.clone();
         move || {
             if !is_loaded.get() {
                 context.with(|ctx| {
-                    let mut result: Vec<(BitSet, BitSet)> = ctx.fcbo_index_concepts().collect();
+                    let mut result: Vec<(BitSet, BitSet)> = ctx.index_fcbo_concepts().collect();
                     ctx.index_sort_lectic_order(&mut result);
                     concepts_data.set(Some(result));
                 });
@@ -134,10 +131,10 @@ pub fn ConceptsView() -> impl IntoView {
 
     let context_version = use_context::<RwSignal<u64>>().unwrap_or_else(|| RwSignal::new(0));
 
-    let is_loaded_for_effect = is_loaded.clone();
-    let last_context_hash_for_effect = last_context_hash.clone();
-    let context_version_for_effect = context_version.clone();
-    let load_concepts_for_effect = load_concepts.clone();
+    let is_loaded_for_effect = is_loaded;
+    let last_context_hash_for_effect = last_context_hash;
+    let context_version_for_effect = context_version;
+    let load_concepts_for_effect = load_concepts;
 
     Effect::new(move |_| {
         let cv = context_version_for_effect.get();
@@ -215,7 +212,6 @@ pub fn CanonicalBasisView() -> impl IntoView {
     let basis = RwSignal::new(None);
 
     let calc_basis = {
-        let context = context.clone();
         move || {
             context.with(|ctx| {
                 let result = ctx.index_canonical_basis();
@@ -285,10 +281,9 @@ pub fn ConceptLatticeView() -> impl IntoView {
     let concepts = RwSignal::new(None);
 
     let calc_concepts = {
-        let context = context.clone();
         move || {
             context.with(|ctx| {
-                let mut result: Vec<(BitSet, BitSet)> = ctx.fcbo_index_concepts().collect();
+                let mut result: Vec<(BitSet, BitSet)> = ctx.index_fcbo_concepts().collect();
                 ctx.index_sort_lectic_order(&mut result);
                 concepts.set(Some(result));
             });

@@ -162,7 +162,6 @@ pub fn TableComp() -> impl IntoView {
     let on_context_change = use_context::<RwSignal<u64>>().unwrap_or_else(|| RwSignal::new(0));
 
     let add_object = {
-        let on_context_change = on_context_change.clone();
         move || {
             context.update(|ctx| {
                 let new_name = format!("{}", ctx.objects.len() + 1);
@@ -173,7 +172,6 @@ pub fn TableComp() -> impl IntoView {
     };
 
     let remove_object = {
-        let on_context_change = on_context_change.clone();
         move |idx: usize| {
             let should_remove = context.with(|ctx| ctx.objects.len() > 1);
             if !should_remove {
@@ -187,7 +185,6 @@ pub fn TableComp() -> impl IntoView {
     };
 
     let add_attribute = {
-        let on_context_change = on_context_change.clone();
         move || {
             context.update(|ctx| {
                 let new_name = index_to_column_name(ctx.attributes.len());
@@ -198,7 +195,6 @@ pub fn TableComp() -> impl IntoView {
     };
 
     let remove_attribute = {
-        let on_context_change = on_context_change.clone();
         move |idx: usize| {
             let should_remove = context.with(|ctx| ctx.attributes.len() > 1);
             if !should_remove {
@@ -212,7 +208,6 @@ pub fn TableComp() -> impl IntoView {
     };
 
     let change_object_name = {
-        let on_context_change = on_context_change.clone();
         move |index: usize, name: String| {
             context.update_untracked(|ctx| {
                 ctx.change_object_name(name, index);
@@ -222,7 +217,6 @@ pub fn TableComp() -> impl IntoView {
     };
 
     let change_attribute_name = {
-        let on_context_change = on_context_change.clone();
         move |index: usize, name: String| {
             context.update_untracked(|ctx| {
                 ctx.change_attribute_name(name, index);
@@ -232,7 +226,6 @@ pub fn TableComp() -> impl IntoView {
     };
 
     let toggle_cell = {
-        let on_context_change = on_context_change.clone();
         move |obj: usize, attr: usize, value: bool| {
             context.update_untracked(|ctx| {
                 if value {

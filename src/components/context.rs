@@ -15,7 +15,7 @@ pub fn index_to_column_name(index: usize) -> String {
     let mut n = index;
     loop {
         result.push((b'a' + (n % 26) as u8) as char);
-        n = n / 26;
+        n /= 26;
         if n == 0 {
             break;
         }

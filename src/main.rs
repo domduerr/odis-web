@@ -1,4 +1,3 @@
-use console_error_panic_hook;
 use leptos::{logging, prelude::*};
 
 use odis::FormalContext;
@@ -48,9 +47,6 @@ pub fn App() -> impl IntoView {
     provide_context(context_version);
 
     let on_context_loaded = {
-        let context = context.clone();
-        let context_version = context_version.clone();
-        let current_view = current_view.clone();
         move |new_context: Option<FormalContext<String>>| {
             if let Some(ctx) = new_context {
                 context.set(ctx);
@@ -61,7 +57,6 @@ pub fn App() -> impl IntoView {
     };
 
     let on_save_context = {
-        let context = context.clone();
         move |_| {
             context.with(|ctx| {
                 let content = crate::core::export::generate_cxt_string(ctx);

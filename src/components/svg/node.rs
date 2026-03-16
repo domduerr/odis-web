@@ -41,13 +41,13 @@ pub fn NodeComp(node: Node, offset: (f64, f64), dimensions: Dimensions) -> impl 
         let pos = x.get() + dimensions.radius - offset.0 + scroll_offset.get_untracked().0;
         if pos > dimensions.width - dimensions.radius {
             node.x_signal.set(dimensions.width - dimensions.radius);
-            return dimensions.width - dimensions.radius;
+            dimensions.width - dimensions.radius
         } else if pos < dimensions.radius {
             node.x_signal.set(dimensions.radius);
-            return dimensions.radius;
+            dimensions.radius
         } else {
             node.x_signal.set(pos);
-            return pos;
+            pos
         }
     };
 
@@ -56,13 +56,13 @@ pub fn NodeComp(node: Node, offset: (f64, f64), dimensions: Dimensions) -> impl 
         let pos = y.get() + dimensions.radius - offset.1 + scroll_offset.get_untracked().1;
         if pos > dimensions.height - dimensions.radius {
             node.y_signal.set(dimensions.height - dimensions.radius);
-            return dimensions.height - dimensions.radius;
+            dimensions.height - dimensions.radius
         } else if pos < dimensions.radius {
             node.y_signal.set(dimensions.radius);
-            return dimensions.radius;
+            dimensions.radius
         } else {
             node.y_signal.set(pos);
-            return pos;
+            pos
         }
     };
 
@@ -97,8 +97,8 @@ pub fn NodeComp(node: Node, offset: (f64, f64), dimensions: Dimensions) -> impl 
             >{
                 if let Some(obj) = node.label.0.clone() {
                     let len = obj.len();
-                    let string = "0".to_string().repeat(len);
-                    string
+                    
+                    "0".to_string().repeat(len)
                 } else {
                     "".to_string()
                 }
@@ -134,8 +134,8 @@ pub fn NodeComp(node: Node, offset: (f64, f64), dimensions: Dimensions) -> impl 
             >{
                 if let Some(attr) = node.label.1.clone() {
                     let len = attr.len();
-                    let string = "0".to_string().repeat(len);
-                    string
+                    
+                    "0".to_string().repeat(len)
                 } else {
                     "".to_string()
                 }

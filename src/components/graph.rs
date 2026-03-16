@@ -1,16 +1,16 @@
-use core::f64;
-
 use bit_set::BitSet;
 use leptos::wasm_bindgen::JsCast;
 use leptos::{either::Either, prelude::*};
 use odis::{FormalContext, Lattice};
+use std::rc::Rc;
 
 use crate::components::{
     svg::{edge::EdgeComp, node::NodeComp},
     svg_download::SvgDownloadComp,
 };
+use crate::core::formatters::{format_attribute_set, format_object_set};
 use crate::core::layout_math::{
-    compute_dimdraw_layout, compute_sugiyama_layout, Dimensions as LayoutDimensions,
+    dimdraw_drawing, scale_drawing_to_viewport, sugiyama_drawing, Dimensions as LayoutDimensions,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -27,6 +27,12 @@ pub struct Node {
     pub y: f64,
     pub x_signal: RwSignal<f64>,
     pub y_signal: RwSignal<f64>,
+}
+
+#[derive(Clone, Debug)]
+struct GraphNode {
+    id: usize,
+    label: (Option<String>, Option<String>),
 }
 
 #[derive(Clone)]
@@ -51,23 +57,52 @@ impl Node {
     }
 }
 
+fn compute_node_positions(
+    lattice: &Lattice<(BitSet, BitSet)>,
+    algorithm: LayoutAlgorithm,
+    dimensions: LayoutDimensions,
+) -> Vec<(usize, f64, f64)> {
+    let drawing = match algorithm {
+        LayoutAlgorithm::DimDraw => dimdraw_drawing(lattice),
+        LayoutAlgorithm::Sugiyama => sugiyama_drawing(lattice),
+    };
+
+    drawing
+        .map(|d| scale_drawing_to_viewport(&d, dimensions))
+        .unwrap_or_default()
+}
+
 #[component]
 pub fn GraphComp(
     concepts: Vec<(BitSet, BitSet)>,
     context: FormalContext<String>,
     layout_algorithm: RwSignal<LayoutAlgorithm>,
 ) -> impl IntoView {
+    let _concept_count = concepts.len();
     let algorithm = layout_algorithm.get();
-    let lattice_option = Lattice::from_index_concepts(&concepts, &context);
+    let lattice_option = context.concept_lattice();
+    let mut error = "";
 
-    let mut lattice = Lattice::new(odis::Order::new(odis::Graph::new(Vec::new(), Vec::new())));
-    let mut error = " ";
-
-    if let Some(n) = lattice_option {
-        lattice = n;
+    let (lattice, edges, graph_nodes) = if let Some(lattice) = lattice_option {
+        let graph_nodes = lattice
+            .poset
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(id, (extent, intent))| GraphNode {
+                id,
+                label: (
+                    Some(format_object_set(extent, &context.objects)),
+                    Some(format_attribute_set(intent, &context.attributes)),
+                ),
+            })
+            .collect();
+        let edges = lattice.poset.covering_edges.clone();
+        (Some(Rc::new(lattice)), edges, graph_nodes)
     } else {
         error = "Cannot draw concept lattice from singular concept.";
-    }
+        (None, Vec::new(), Vec::new())
+    };
 
     let dimensions = RwSignal::new(Dimensions {
         width: 600.0,
@@ -110,7 +145,7 @@ pub fn GraphComp(
         resize_type.set(1);
         resize_start_x.set(ev.client_x() as f64);
         resize_start_width.set(dimensions.get_untracked().width);
-        let _ = ev.prevent_default();
+        ev.prevent_default();
     };
 
     let on_mouse_down_height = move |ev: leptos::ev::MouseEvent| {
@@ -118,7 +153,7 @@ pub fn GraphComp(
         resize_type.set(2);
         resize_start_y.set(ev.client_y() as f64);
         resize_start_height.set(dimensions.get_untracked().height);
-        let _ = ev.prevent_default();
+        ev.prevent_default();
     };
 
     let on_mouse_down_corner = move |ev: leptos::ev::MouseEvent| {
@@ -128,11 +163,9 @@ pub fn GraphComp(
         resize_start_y.set(ev.client_y() as f64);
         resize_start_width.set(dimensions.get_untracked().width);
         resize_start_height.set(dimensions.get_untracked().height);
-        let _ = ev.prevent_default();
+        ev.prevent_default();
     };
 
-    let edges = lattice.order.graph.edges.clone();
-    let graph_nodes = lattice.order.graph.nodes.clone();
     let edges_for_view = edges.clone();
 
     let graph_node: NodeRef<leptos::svg::Svg> = NodeRef::new();
@@ -156,11 +189,10 @@ pub fn GraphComp(
         margin: dimensions_initial.margin,
     };
 
-    let node_positions: Vec<(usize, f64, f64)> = match algorithm {
-        LayoutAlgorithm::DimDraw => compute_dimdraw_layout(&edges, layout_dims),
-        LayoutAlgorithm::Sugiyama => {
-            compute_sugiyama_layout(&edges, layout_dims, graph_nodes.len())
-        }
+    let node_positions: Vec<(usize, f64, f64)> = if let Some(lattice_ref) = &lattice {
+        compute_node_positions(lattice_ref, algorithm, layout_dims)
+    } else {
+        Vec::new()
     };
 
     nodes.set(
@@ -182,8 +214,8 @@ pub fn GraphComp(
             .collect(),
     );
 
-    let edges_clone = edges.clone();
     let graph_nodes_clone = graph_nodes.clone();
+    let lattice_clone = lattice.clone();
 
     Effect::new(move || {
         let dims = dimensions.get();
@@ -194,11 +226,10 @@ pub fn GraphComp(
             margin: dims.margin,
         };
 
-        let node_positions_scaled: Vec<(usize, f64, f64)> = match algo {
-            LayoutAlgorithm::DimDraw => compute_dimdraw_layout(&edges_clone, layout_dims),
-            LayoutAlgorithm::Sugiyama => {
-                compute_sugiyama_layout(&edges_clone, layout_dims, graph_nodes_clone.len())
-            }
+        let node_positions_scaled: Vec<(usize, f64, f64)> = if let Some(lattice_ref) = lattice_clone.as_ref() {
+            compute_node_positions(lattice_ref, algo, layout_dims)
+        } else {
+            Vec::new()
         };
 
         nodes.set(
@@ -218,15 +249,15 @@ pub fn GraphComp(
         );
     });
 
-    let width_input_ref2 = width_input_ref.clone();
-    let height_input_ref2 = height_input_ref.clone();
-    let is_resizing2 = is_resizing.clone();
-    let resize_type2 = resize_type.clone();
-    let resize_start_x2 = resize_start_x.clone();
-    let resize_start_y2 = resize_start_y.clone();
-    let resize_start_width2 = resize_start_width.clone();
-    let resize_start_height2 = resize_start_height.clone();
-    let dimensions2 = dimensions.clone();
+    let width_input_ref2 = width_input_ref;
+    let height_input_ref2 = height_input_ref;
+    let is_resizing2 = is_resizing;
+    let resize_type2 = resize_type;
+    let resize_start_x2 = resize_start_x;
+    let resize_start_y2 = resize_start_y;
+    let resize_start_width2 = resize_start_width;
+    let resize_start_height2 = resize_start_height;
+    let dimensions2 = dimensions;
 
     let move_handle =
         window_event_listener(leptos::ev::mousemove, move |ev: leptos::ev::MouseEvent| {
@@ -334,11 +365,11 @@ pub fn GraphComp(
                                 }
                             })
                         } else {
-                            Either::Right(view! {})
+                            Either::Right(())
                         }
                     }}
                     {move || {
-                        if error == " " {
+                        if error.is_empty() {
                             Either::Left(())
                         } else {
                             Either::Right(

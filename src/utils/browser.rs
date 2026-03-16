@@ -20,14 +20,14 @@ pub fn trigger_blob_download(blob: &Blob, filename: &str, mime_type: &str) -> Re
 }
 
 fn trigger_download_from_url(url: &str, filename: &str, _mime_type: &str) -> Result<(), JsValue> {
-    let window = web_sys::window().ok_or_else(|| JsValue::NULL)?;
-    let document = window.document().ok_or_else(|| JsValue::NULL)?;
+    let window = web_sys::window().ok_or(JsValue::NULL)?;
+    let document = window.document().ok_or(JsValue::NULL)?;
 
     let link = document.create_element("a")?;
     link.set_attribute("download", filename)?;
     link.set_attribute("href", url)?;
 
-    let html_link: &web_sys::HtmlElement = link.dyn_ref().ok_or_else(|| JsValue::NULL)?;
+    let html_link: &web_sys::HtmlElement = link.dyn_ref().ok_or(JsValue::NULL)?;
 
     html_link.click();
 

@@ -55,20 +55,19 @@ pub fn ExplorationComp() -> impl IntoView {
     let implications_scroll_ref = NodeRef::<leptos::html::Div>::new();
 
     let scroll_to_bottom = move |node_ref: NodeRef<leptos::html::Div>| {
-        if let Some(window) = web_sys::window() {
-            if let Some(el) = node_ref.get_untracked() {
+        if let Some(window) = web_sys::window()
+            && let Some(el) = node_ref.get_untracked() {
                 let cb = Closure::wrap(Box::new(move || {
-                    el.set_scroll_top(el.scroll_height() as i32);
+                    el.set_scroll_top(el.scroll_height());
                 }) as Box<dyn FnMut()>);
                 let _ = window.set_timeout_with_callback(cb.as_ref().unchecked_ref());
                 cb.forget();
             }
-        }
     };
 
     let init_exploration = move || {
         if !is_initialized.get() {
-            let context_clone = context.clone();
+            let context_clone = context;
             machine.update(|m| {
                 let _ = m.process_input(move || context_clone.get(), ExplorationInput::Start);
             });
@@ -96,10 +95,10 @@ pub fn ExplorationComp() -> impl IntoView {
     let new_object_input_ref = NodeRef::<leptos::html::Span>::new();
     let counterexample_valid = RwSignal::new(true);
 
-    let checkboxes_clone = new_object_checkboxes.clone();
-    let machine_clone = machine.clone();
-    let counterexample_valid_clone = counterexample_valid.clone();
-    let new_object_name_clone = new_object_name.clone();
+    let checkboxes_clone = new_object_checkboxes;
+    let machine_clone = machine;
+    let counterexample_valid_clone = counterexample_valid;
+    let new_object_name_clone = new_object_name;
 
     Effect::new(move |_| {
         let checkboxes = checkboxes_clone.get();
@@ -112,7 +111,7 @@ pub fn ExplorationComp() -> impl IntoView {
             | ExplorationState::AwaitingCounterexample {
                 premise,
                 conclusion,
-            } => conclusion.difference(&premise).collect(),
+            } => conclusion.difference(premise).collect(),
             _ => BitSet::new(),
         });
 
@@ -132,7 +131,7 @@ pub fn ExplorationComp() -> impl IntoView {
     new_object_checkboxes.set(vec![RwSignal::new(false); attr_len]);
 
     let handle_yes = move |_| {
-        let context_clone = context.clone();
+        let context_clone = context;
         machine.update(|m| {
             let _ = m.process_input(move || context_clone.get(), ExplorationInput::Yes);
         });
@@ -143,7 +142,7 @@ pub fn ExplorationComp() -> impl IntoView {
             ExplorationState::Finished => view_state.set(ViewState::Finished),
             _ => {}
         }
-        scroll_to_bottom(implications_scroll_ref.clone());
+        scroll_to_bottom(implications_scroll_ref);
     };
 
     let handle_no = move |_| {
@@ -166,15 +165,15 @@ pub fn ExplorationComp() -> impl IntoView {
         let disabled: Vec<bool> = (0..attr_len).map(|i| premise.contains(i)).collect();
         new_object_checkboxes_disabled.set(disabled);
 
-        let context_clone = context.clone();
+        let context_clone = context;
         machine.update(|m| {
             let _ = m.process_input(move || context_clone.get(), ExplorationInput::No);
         });
 
         view_state.set(ViewState::Counterexample);
 
-        let new_object_input_ref = new_object_input_ref.clone();
-        let context_scroll_ref = context_scroll_ref.clone();
+        let new_object_input_ref = new_object_input_ref;
+        let context_scroll_ref = context_scroll_ref;
         let cb = Closure::wrap(Box::new(move || {
             let span_el = new_object_input_ref.get_untracked();
             let ctx_el = context_scroll_ref.get_untracked();
@@ -182,7 +181,7 @@ pub fn ExplorationComp() -> impl IntoView {
                 let _ = span.focus();
             }
             if let Some(el) = &ctx_el {
-                el.set_scroll_top(el.scroll_height() as i32);
+                el.set_scroll_top(el.scroll_height());
             }
         }) as Box<dyn FnMut()>);
         web_sys::window()
@@ -201,7 +200,7 @@ pub fn ExplorationComp() -> impl IntoView {
             | ExplorationState::AwaitingCounterexample {
                 premise,
                 conclusion,
-            } => conclusion.difference(&premise).collect(),
+            } => conclusion.difference(premise).collect(),
             _ => BitSet::new(),
         });
 
@@ -224,7 +223,7 @@ pub fn ExplorationComp() -> impl IntoView {
             });
         }
 
-        let context_clone = context.clone();
+        let context_clone = context;
         machine.update(|m| {
             let _ = m.process_input(
                 move || context_clone.get(),
@@ -240,14 +239,14 @@ pub fn ExplorationComp() -> impl IntoView {
             ExplorationState::Finished => view_state.set(ViewState::Finished),
             _ => {}
         }
-        scroll_to_bottom(context_scroll_ref.clone());
+        scroll_to_bottom(context_scroll_ref);
     };
 
-    let handle_reset = move |_: leptos::ev::MouseEvent| {
+    let _handle_reset = move |_: leptos::ev::MouseEvent| {
         machine.update(|m| m.reset());
         is_initialized.set(false);
 
-        let context_clone = context.clone();
+        let context_clone = context;
         machine.update(|m| {
             let _ = m.process_input(move || context_clone.get(), ExplorationInput::Start);
         });
@@ -279,7 +278,7 @@ pub fn ExplorationComp() -> impl IntoView {
                                 <tr>
                                     <td class="p-1"></td>
                                     <For
-                                        each=move || context.with(|ctx| ctx.attributes.iter().cloned().collect::<Vec<_>>())
+                                        each=move || context.with(|ctx| ctx.attributes.to_vec())
                                         key=|attr| attr.clone()
                                         children=|attr| {
                                             view! {
@@ -327,7 +326,6 @@ pub fn ExplorationComp() -> impl IntoView {
                                                     each=move || checkbox_data.clone()
                                                     key=|item| item.0
                                                     children=|(_idx, checkbox, is_disabled)| {
-                                                        let checkbox = checkbox.clone();
                                                         view! {
                                                             <td class="p-1 text-center border border-dhbw-gray-25 bg-white">
                                                                 <input
@@ -458,7 +456,7 @@ pub fn ExplorationComp() -> impl IntoView {
                                                         match &m.state {
                                                             ExplorationState::ValidatingImplication { premise, conclusion }
                                                             | ExplorationState::AwaitingCounterexample { premise, conclusion } => {
-                                                                conclusion.difference(&premise).collect()
+                                                                conclusion.difference(premise).collect()
                                                             }
                                                             _ => BitSet::new(),
                                                         }
