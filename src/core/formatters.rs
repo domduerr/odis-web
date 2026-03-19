@@ -1,5 +1,6 @@
 use bit_set::BitSet;
 
+#[allow(dead_code)]
 pub fn format_object_set(indices: &BitSet, names: &[String]) -> String {
     let mut obj_string = String::new();
     obj_string.push('{');

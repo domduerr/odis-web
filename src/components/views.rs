@@ -282,7 +282,7 @@ pub fn ConceptLatticeView() -> impl IntoView {
 
     let calc_concepts = {
         move || {
-            context.with(|ctx| {
+            context.with_untracked(|ctx| {
                 let mut result: Vec<(BitSet, BitSet)> = ctx.index_fcbo_concepts().collect();
                 ctx.index_sort_lectic_order(&mut result);
                 concepts.set(Some(result));
@@ -292,11 +292,11 @@ pub fn ConceptLatticeView() -> impl IntoView {
 
     calc_concepts();
 
-    let num_concepts = concepts.get().map(|c| c.len()).unwrap_or(0);
-    let layout_algorithm = RwSignal::new(if num_concepts <= 20 {
-        LayoutAlgorithm::DimDraw
-    } else {
+    let num_concepts = concepts.get_untracked().map(|c| c.len()).unwrap_or(0);
+    let layout_algorithm = RwSignal::new(if num_concepts > 100 {
         LayoutAlgorithm::Sugiyama
+    } else {
+        LayoutAlgorithm::DimDraw
     });
 
     view! {

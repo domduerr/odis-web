@@ -2,7 +2,7 @@
 
 use bit_set::BitSet;
 use odis::{
-    algorithms::{dimdraw::DimDraw, sugiyama::Sugiyama},
+    algorithms::{fast_dimdraw::FastDimDraw, sugiyama::Sugiyama},
     Drawing, DrawingAlgorithm, Lattice,
 };
 
@@ -13,23 +13,17 @@ pub struct Dimensions {
 }
 
 pub fn dimdraw_drawing(lattice: &Lattice<(BitSet, BitSet)>) -> Option<Drawing> {
-    DimDraw {
-        sat: true,
-        sat_timeout: -1.0,
-    }
-    .draw(lattice)
+    FastDimDraw { timeout_ms: 1000 }.draw(lattice)
 }
 
 pub fn sugiyama_drawing(lattice: &Lattice<(BitSet, BitSet)>) -> Option<Drawing> {
     Sugiyama { vertex_spacing: 1 }.draw(lattice)
 }
 
-/// Scales a raw drawing into the current SVG viewport while preserving relative layout.
-pub fn scale_drawing_to_viewport(
-    drawing: &Drawing,
+pub fn scale_coordinates_to_viewport(
+    coords: &[(f64, f64)],
     dimensions: Dimensions,
 ) -> Vec<(usize, f64, f64)> {
-    let coords = &drawing.coordinates;
     if coords.is_empty() {
         return Vec::new();
     }
@@ -83,4 +77,33 @@ pub fn scale_drawing_to_viewport(
             (idx, scaled_x + offset, scaled_y + offset)
         })
         .collect()
+}
+
+/// Scales a raw drawing into the current SVG viewport while preserving relative layout.
+pub fn scale_drawing_to_viewport(
+    drawing: &Drawing,
+    dimensions: Dimensions,
+) -> Vec<(usize, f64, f64)> {
+    scale_coordinates_to_viewport(&drawing.coordinates, dimensions)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_scale_drawing_preserves_y_order() {
+        let drawing = Drawing::new(vec![(0.0, 0.0), (0.0, 10.0)]);
+        let dims = Dimensions {
+            width: 200.0,
+            height: 200.0,
+            margin: 0.0,
+        };
+
+        let scaled = scale_drawing_to_viewport(&drawing, dims);
+        assert_eq!(scaled.len(), 2);
+
+        // Larger source y should stay larger after scaling.
+        assert!(scaled[0].2 < scaled[1].2, "scaled coords: {:?}", scaled);
+    }
 }
