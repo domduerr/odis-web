@@ -5,12 +5,6 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Odis-Web</title>
-  <!-- wasm-opt is not applied unless the Rust asset is declared explicitly.
-       -Oz measured fastest on the branch-and-bound search (29.3ms against
-       32.0ms unoptimised, tied with -O3/-O4) and smallest: the bundle drops
-       from 1860KB to 1093KB, which is also that much less for the browser to
-       parse before the app starts. Combining it with fat LTO is worse on both
-       counts, so the release profile is deliberately left at cargo's default. -->
   <link data-trunk rel="rust" data-wasm-opt="z" />
   <link data-trunk rel="tailwind-css" href="style/tailwind.css" />
 </head>
