@@ -38,10 +38,25 @@ fn format_attribute_set_table(indices: &BitSet, names: &[String]) -> String {
 #[component]
 pub fn FormalContextView() -> impl IntoView {
     let context = use_context::<RwSignal<FormalContext<String>>>().expect("Context not provided");
+    let context_version = use_context::<RwSignal<u64>>().unwrap_or_else(|| RwSignal::new(0));
 
     view! {
         <div class="h-full">
             <h2 class="text-dhbw-gray font-semibold text-lg mb-4">Formal Context</h2>
+
+            <div class="mb-4">
+                <input
+                    type="text"
+                    class="w-full border border-dhbw-gray-25 rounded px-3 py-2 text-sm text-dhbw-gray focus:outline-none focus:border-dhbw-red"
+                    placeholder="Unnamed context"
+                    prop:value=move || context.with(|ctx| ctx.name.clone())
+                    on:input=move |ev| {
+                        let val = event_target_value(&ev);
+                        context.update_untracked(|ctx| ctx.name = val);
+                        context_version.update(|v| *v += 1);
+                    }
+                />
+            </div>
             <div class="bg-gray-50 rounded-lg p-4 border border-dhbw-gray-25">
                 {move || {
                     context.with(|ctx| {
@@ -213,7 +228,7 @@ pub fn CanonicalBasisView() -> impl IntoView {
 
     let calc_basis = {
         move || {
-            context.with(|ctx| {
+            context.with_untracked(|ctx| {
                 let result = ctx.index_canonical_basis();
                 basis.set(Some(result));
             });

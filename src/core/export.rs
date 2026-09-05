@@ -1,7 +1,7 @@
 use odis::FormalContext;
 
 pub fn generate_cxt_string(ctx: &FormalContext<String>) -> String {
-    let mut content = format!("B\n\n{}\n{}\n\n", ctx.objects.len(), ctx.attributes.len());
+    let mut content = format!("B\n{}\n{}\n{}\n\n", ctx.name, ctx.objects.len(), ctx.attributes.len());
 
     for object in ctx.objects.iter() {
         if object != &"".to_string() {
@@ -34,11 +34,14 @@ pub fn generate_cxt_string(ctx: &FormalContext<String>) -> String {
 }
 
 pub fn generate_cxt_filename(ctx: &FormalContext<String>) -> String {
-    let first_object = ctx.objects.first().map(|s| s.as_str()).unwrap_or("");
-
-    if first_object == "B" || first_object.is_empty() {
-        "Formal_context.cxt".to_string()
+    let name = ctx.name.trim();
+    if name.is_empty() {
+        "formal_context.cxt".to_string()
     } else {
-        format!("{}.cxt", first_object)
+        let safe: String = name
+            .chars()
+            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .collect();
+        format!("{}.cxt", safe)
     }
 }

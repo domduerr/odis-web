@@ -173,10 +173,6 @@ pub fn TableComp() -> impl IntoView {
 
     let remove_object = {
         move |idx: usize| {
-            let should_remove = context.with(|ctx| ctx.objects.len() > 1);
-            if !should_remove {
-                return;
-            }
             context.update(|ctx| {
                 ctx.remove_object(idx);
             });
@@ -196,10 +192,6 @@ pub fn TableComp() -> impl IntoView {
 
     let remove_attribute = {
         move |idx: usize| {
-            let should_remove = context.with(|ctx| ctx.attributes.len() > 1);
-            if !should_remove {
-                return;
-            }
             context.update(|ctx| {
                 ctx.remove_attribute(idx);
             });
@@ -228,15 +220,7 @@ pub fn TableComp() -> impl IntoView {
     let toggle_cell = {
         move |obj: usize, attr: usize, value: bool| {
             context.update_untracked(|ctx| {
-                if value {
-                    ctx.incidence.insert((obj, attr));
-                    ctx.atomic_object_derivations[obj].insert(attr);
-                    ctx.atomic_attribute_derivations[attr].insert(obj);
-                } else {
-                    ctx.incidence.remove(&(obj, attr));
-                    ctx.atomic_object_derivations[obj].remove(attr);
-                    ctx.atomic_attribute_derivations[attr].remove(obj);
-                }
+                ctx.set_cross(obj, attr, value);
             });
             on_context_change.update(|v| *v += 1);
         }
@@ -244,6 +228,19 @@ pub fn TableComp() -> impl IntoView {
 
     view! {
         <div class="h-full">
+            <div class="mb-3">
+                <input
+                    type="text"
+                    class="w-full border border-dhbw-gray-25 rounded px-3 py-2 text-sm text-dhbw-gray focus:outline-none focus:border-dhbw-red"
+                    placeholder="Unnamed context"
+                    prop:value=move || context.with(|ctx| ctx.name.clone())
+                    on:input=move |ev| {
+                        let val = event_target_value(&ev);
+                        context.update_untracked(|ctx| ctx.name = val);
+                        on_context_change.update(|v| *v += 1);
+                    }
+                />
+            </div>
             <div class="overflow-auto">
                 <table class="border-collapse">
                     <tbody>

@@ -66,14 +66,14 @@ pub fn ExplorationComp() -> impl IntoView {
     };
 
     let init_exploration = move || {
-        if !is_initialized.get() {
+        if !is_initialized.get_untracked() {
             let context_clone = context;
             machine.update(|m| {
-                let _ = m.process_input(move || context_clone.get(), ExplorationInput::Start);
+                let _ = m.process_input(move || context_clone.get_untracked(), ExplorationInput::Start);
             });
             is_initialized.set(true);
 
-            let state = machine.with(|m| m.state.clone());
+            let state = machine.with_untracked(|m| m.state.clone());
             match state {
                 ExplorationState::Finished => view_state.set(ViewState::Finished),
                 ExplorationState::ValidatingImplication { .. } => {
@@ -127,16 +127,16 @@ pub fn ExplorationComp() -> impl IntoView {
         counterexample_valid_clone.set(is_valid);
     });
 
-    let attr_len = context.with(|ctx| ctx.attributes.len());
+    let attr_len = context.with_untracked(|ctx| ctx.attributes.len());
     new_object_checkboxes.set(vec![RwSignal::new(false); attr_len]);
 
     let handle_yes = move |_| {
         let context_clone = context;
         machine.update(|m| {
-            let _ = m.process_input(move || context_clone.get(), ExplorationInput::Yes);
+            let _ = m.process_input(move || context_clone.get_untracked(), ExplorationInput::Yes);
         });
 
-        let state = machine.with(|m| m.state.clone());
+        let state = machine.with_untracked(|m| m.state.clone());
         match state {
             ExplorationState::ValidatingImplication { .. } => view_state.set(ViewState::Validating),
             ExplorationState::Finished => view_state.set(ViewState::Finished),
@@ -147,9 +147,9 @@ pub fn ExplorationComp() -> impl IntoView {
 
     let handle_no = move |_| {
         new_object_name.set(String::new());
-        let attr_len = context.with(|ctx| ctx.attributes.len());
+        let attr_len = context.with_untracked(|ctx| ctx.attributes.len());
 
-        let premise: BitSet = machine.with(|m| {
+        let premise: BitSet = machine.with_untracked(|m| {
             if let ExplorationState::ValidatingImplication { premise, .. } = &m.state {
                 premise.clone()
             } else {
@@ -167,7 +167,7 @@ pub fn ExplorationComp() -> impl IntoView {
 
         let context_clone = context;
         machine.update(|m| {
-            let _ = m.process_input(move || context_clone.get(), ExplorationInput::No);
+            let _ = m.process_input(move || context_clone.get_untracked(), ExplorationInput::No);
         });
 
         view_state.set(ViewState::Counterexample);
@@ -192,7 +192,7 @@ pub fn ExplorationComp() -> impl IntoView {
     };
 
     let handle_submit = move |_| {
-        let conclusion: BitSet = machine.with(|m| match &m.state {
+        let conclusion: BitSet = machine.with_untracked(|m| match &m.state {
             ExplorationState::ValidatingImplication {
                 premise,
                 conclusion,
@@ -205,8 +205,8 @@ pub fn ExplorationComp() -> impl IntoView {
         });
 
         let mut attribute_set = BitSet::new();
-        for (i, checkbox) in new_object_checkboxes.get().iter().enumerate() {
-            if checkbox.get() {
+        for (i, checkbox) in new_object_checkboxes.get_untracked().iter().enumerate() {
+            if checkbox.get_untracked() {
                 attribute_set.insert(i);
             }
         }
@@ -216,7 +216,7 @@ pub fn ExplorationComp() -> impl IntoView {
             return;
         }
 
-        let object_name = new_object_name.get();
+        let object_name = new_object_name.get_untracked();
         if !object_name.is_empty() {
             context.update(|ctx| {
                 ctx.add_object(object_name, &attribute_set);
@@ -226,14 +226,14 @@ pub fn ExplorationComp() -> impl IntoView {
         let context_clone = context;
         machine.update(|m| {
             let _ = m.process_input(
-                move || context_clone.get(),
+                move || context_clone.get_untracked(),
                 ExplorationInput::Submit {
                     counterexample: attribute_set,
                 },
             );
         });
 
-        let state = machine.with(|m| m.state.clone());
+        let state = machine.with_untracked(|m| m.state.clone());
         match state {
             ExplorationState::ValidatingImplication { .. } => view_state.set(ViewState::Validating),
             ExplorationState::Finished => view_state.set(ViewState::Finished),
@@ -248,10 +248,10 @@ pub fn ExplorationComp() -> impl IntoView {
 
         let context_clone = context;
         machine.update(|m| {
-            let _ = m.process_input(move || context_clone.get(), ExplorationInput::Start);
+            let _ = m.process_input(move || context_clone.get_untracked(), ExplorationInput::Start);
         });
 
-        let state = machine.with(|m| m.state.clone());
+        let state = machine.with_untracked(|m| m.state.clone());
         match state {
             ExplorationState::Finished => view_state.set(ViewState::Finished),
             ExplorationState::ValidatingImplication { .. } => view_state.set(ViewState::Validating),

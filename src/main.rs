@@ -5,6 +5,7 @@ use odis::FormalContext;
 use crate::components::layout::{Header, Sidebar, View};
 use crate::components::table::TableComp;
 use crate::components::views::{ConceptsView, ConceptLatticeView, CanonicalBasisView, ExplorationViewWrapper};
+use crate::components::iceberg::IcebergView;
 
 mod core {
     pub mod export;
@@ -22,6 +23,7 @@ mod components {
     pub mod download;
     pub mod exploration;
     pub mod graph;
+    pub mod iceberg;
     pub mod svg_download;
     pub mod table;
     pub mod svg {
@@ -90,6 +92,9 @@ pub fn App() -> impl IntoView {
                         }
                         View::Exploration => {
                             view! { <ExplorationViewWrapper/> }.into_any()
+                        }
+                        View::IcebergLattice => {
+                            view! { <IcebergView/> }.into_any()
                         }
                     }}
                 </main>

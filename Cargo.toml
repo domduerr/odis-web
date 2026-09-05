@@ -1,7 +1,9 @@
 [package]
 name = "odis-web"
-version = "0.0.2"
+version = "2026.9.0"
+authors = ["Dominik Dürrschnabel", "Armin Strupp"]
 edition = "2024"
+license = "AGPL-3.0-only"
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
@@ -25,5 +27,5 @@ web-sys = { version = "0.3.77", features = [
 leptos-use = { version = "0.15.10", features = ["use_draggable"] }
 wasm-bindgen-futures = "0.4.50"
 odis = { path = "../odis" }
-bit-set = { workspace = true }
-rust-sugiyama = { workspace = true }
+bit-set = "0.8.0"
+rust-sugiyama = "0.3.0"

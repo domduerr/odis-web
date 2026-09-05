@@ -14,6 +14,7 @@ pub enum View {
     ConceptLattice,
     CanonicalBasis,
     Exploration,
+    IcebergLattice,
 }
 
 #[component]
@@ -113,6 +114,7 @@ pub fn Sidebar(
     let is_lattice = Signal::derive(move || current_view.get() == View::ConceptLattice);
     let is_basis = Signal::derive(move || current_view.get() == View::CanonicalBasis);
     let is_exploration = Signal::derive(move || current_view.get() == View::Exploration);
+    let is_iceberg = Signal::derive(move || current_view.get() == View::IcebergLattice);
 
     view! {
         <aside class="w-56 bg-white border-r border-dhbw-gray-25 flex flex-col">
@@ -170,6 +172,13 @@ pub fn Sidebar(
                         on_click=move || current_view.set(View::ConceptLattice)
                         icon_path="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
                         label="Concept Lattice"
+                    />
+
+                    <SidebarItem
+                        is_active=move || is_iceberg.get()
+                        on_click=move || current_view.set(View::IcebergLattice)
+                        icon_path="M3 6l9-4 9 4-9 4-9-4zm0 6l9 4 9-4m0-10v10m-18 0v-10"
+                        label="Iceberg Lattice"
                     />
 
                     <SidebarItem
