@@ -39,7 +39,9 @@ cd odis-web
 trunk build --release
 ```
 
-Output lands in `odis-web/dist/`. Copy the contents to `odis.github.io/` to
+Output lands in `odis-web/dist/`. Deploying is normally left to the workflow
+in `.github/workflows/deploy.yml`; by hand, copy the contents to the checkout of
+`domduerr/odis-web.github.io` to
 publish a new version of the hosted app.
 
 ---

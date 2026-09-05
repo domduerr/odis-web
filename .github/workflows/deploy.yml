@@ -1,6 +1,6 @@
-# Builds the app and publishes the result to the repository that serves
-# https://odis.github.io. That repository holds nothing but the build output, so
-# a deploy replaces its contents wholesale.
+# Builds the app and publishes the result to the repository that serves it at
+# https://domduerr.github.io/odis-web.github.io/. That repository holds nothing
+# but the build output, so a deploy replaces its contents wholesale.
 name: Deploy
 
 on:
@@ -15,7 +15,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   TRUNK_VERSION: "0.21.14"
-  PAGES_REPOSITORY: "domduerr/odis.github.io"
+  PAGES_REPOSITORY: "domduerr/odis-web.github.io"
 
 jobs:
   build:
@@ -58,7 +58,7 @@ jobs:
           path: dist
 
   deploy:
-    name: Deploy to ${{ github.event.repository.name }}.github.io
+    name: Deploy to odis-web.github.io
     runs-on: ubuntu-latest
     needs: build
     if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
