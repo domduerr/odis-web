@@ -1,41 +1,29 @@
 use bit_set::BitSet;
 
-#[allow(dead_code)]
-pub fn format_object_set(indices: &BitSet, names: &[String]) -> String {
-    let mut obj_string = String::new();
-    obj_string.push('{');
+/// Renders a set of object or attribute indices as `{a, b, c}`.
+///
+/// The single formatter for every set the UI shows, so that concepts,
+/// implications and exploration questions all read the same.
+pub fn format_set(indices: &BitSet, names: &[String]) -> String {
+    let items: Vec<&str> = indices
+        .iter()
+        .filter(|&n| n < names.len())
+        .map(|n| names[n].as_str())
+        .collect();
 
-    for n in indices {
-        if n < names.len() {
-            obj_string.push_str(&format!(" {} ,", names[n]));
-        }
-    }
-
-    if !indices.is_empty() {
-        obj_string.pop();
-    } else {
-        obj_string.push(' ');
-    }
-    obj_string.push('}');
-    obj_string
+    format!("{{{}}}", items.join(", "))
 }
 
-pub fn format_attribute_set(indices: &BitSet, names: &[String]) -> String {
-    let mut attr_string = String::new();
-    attr_string.push('{');
-
-    for n in indices {
-        if n < names.len() {
-            attr_string.push_str(&format!(" {} ,", names[n]));
-        }
-    }
-
-    if !indices.is_empty() {
-        attr_string.pop();
+/// `1 concept`, `2 concepts` — every count the UI shows goes through here.
+pub fn count(n: usize, noun: &str) -> String {
+    if n == 1 {
+        format!("1 {noun}")
     } else {
-        attr_string.push(' ');
+        format!("{n} {noun}s")
     }
-    attr_string.push('}');
-    attr_string
 }
 
+/// The size of a context, as shown next to its name: `6 objects × 12 attributes`.
+pub fn context_size(objects: usize, attributes: usize) -> String {
+    format!("{} × {}", count(objects, "object"), count(attributes, "attribute"))
+}

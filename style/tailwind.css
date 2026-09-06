@@ -2,17 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-    input[type="checkbox"]:hover {
-      accent-color: brightness(1.5);
-    }
-    table {
-      border-collapse: collapse;
-    }
-    .prevent-select {
-      -webkit-user-select: none;
-      -ms-user-select: none;
-      user-select: none;
-    }
-    li:not(:last-child) {
-      padding-bottom: 15px;
-    }
+@layer base {
+  table {
+    border-collapse: collapse;
+  }
+
+  /* Editable cells look empty until they are labelled. */
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: rgba(92, 105, 113, 0.5);
+  }
+}
+
+.prevent-select {
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}

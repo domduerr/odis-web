@@ -3,6 +3,7 @@ use leptos::{logging, prelude::*};
 use odis::FormalContext;
 
 use crate::components::layout::{Header, Sidebar, View};
+use crate::components::repository::RepositoryDialog;
 use crate::components::table::TableComp;
 use crate::components::views::{ConceptsView, ConceptLatticeView, CanonicalBasisView, ExplorationViewWrapper};
 use crate::components::iceberg::IcebergView;
@@ -20,12 +21,13 @@ mod utils {
 
 mod components {
     pub mod context;
-    pub mod download;
+    pub mod repository;
     pub mod exploration;
     pub mod graph;
     pub mod iceberg;
     pub mod svg_download;
     pub mod table;
+    pub mod ui;
     pub mod svg {
         pub mod edge;
         pub mod node;
@@ -44,6 +46,7 @@ pub fn App() -> impl IntoView {
     provide_context(context);
 
     let current_view = RwSignal::new(View::FormalContext);
+    let repository_open = RwSignal::new(false);
 
     let context_version: RwSignal<u64> = RwSignal::new(0);
     provide_context(context_version);
@@ -75,7 +78,7 @@ pub fn App() -> impl IntoView {
         <div class="flex flex-col h-screen bg-white">
             <Header/>
             <div class="flex flex-1 overflow-hidden">
-                <Sidebar current_view on_context_loaded on_save_context/>
+                <Sidebar current_view on_context_loaded on_save_context repository_open/>
                 <main class="flex-1 overflow-auto p-6 bg-gray-50">
                     {move || match current_view.get() {
                         View::FormalContext => {
@@ -99,6 +102,7 @@ pub fn App() -> impl IntoView {
                     }}
                 </main>
             </div>
+            <RepositoryDialog open=repository_open on_context_loaded/>
         </div>
     }
 }

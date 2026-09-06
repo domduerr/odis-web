@@ -64,6 +64,7 @@ odis-web/
     │   ├── exploration.rs   # Attribute exploration dialog
     │   ├── table.rs         # Cross-table editor
     │   ├── svg_download.rs  # SVG download button
+    │   ├── ui.rs            # Shared panel, control and typography styles
     │   └── svg/             # Low-level SVG primitives
     ├── core/
     │   ├── export.rs        # Context serialisation helpers
@@ -169,4 +170,5 @@ version.update(|v| *v += 1);
 | `exploration.rs` | Attribute exploration |
 | `table.rs` | Cross-table incidence editor |
 | `svg_download.rs` | SVG export / clipboard button |
+| `ui.rs` | Shared `Panel`, button/input classes, set and implication typography |
 | `svg/` | Low-level SVG node/edge rendering primitives |

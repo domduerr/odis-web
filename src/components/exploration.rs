@@ -5,8 +5,11 @@ use leptos::wasm_bindgen::JsCast;
 use bit_set::BitSet;
 use odis::FormalContext;
 
+use crate::components::ui::{
+    Arrow, Implication, Panel, ARROW_CELL, BTN_PRIMARY, BTN_SECONDARY, SET_TEXT, TH,
+};
 use crate::core::exploration_state::{ExplorationInput, ExplorationMachine, ExplorationState};
-use crate::core::formatters::format_attribute_set;
+use crate::core::formatters::{context_size, count, format_set};
 
 #[derive(Clone, PartialEq)]
 enum ViewState {
@@ -21,19 +24,19 @@ fn render_table_row(obj_idx: usize, context: RwSignal<FormalContext<String>>) ->
 
     view! {
         <tr>
-            <td class="p-1 border border-dhbw-gray-25 bg-gray-100 text-dhbw-gray font-medium">{obj_name}</td>
+            <td class="border border-dhbw-gray-25 bg-gray-50 p-1 font-medium text-dhbw-gray">{obj_name}</td>
             <For
                 each=move || context.with(|ctx| (0..ctx.attributes.len()).collect::<Vec<_>>())
                 key=|&idx| idx
                 children=move |attr_idx| {
                     let checked = context.with_untracked(|ctx| ctx.incidence.contains(&(row_idx, attr_idx)));
                     view! {
-                        <td class="p-1 text-center border border-dhbw-gray-25 bg-white">
+                        <td class="border border-dhbw-gray-25 bg-white p-1 text-center">
                             <input
                                 type="checkbox"
                                 checked=checked
                                 disabled=true
-                                class="accent-dhbw-red w-4 h-4"
+                                class="h-4 w-4 accent-dhbw-red"
                             />
                         </td>
                     }
@@ -95,15 +98,9 @@ pub fn ExplorationComp() -> impl IntoView {
     let new_object_input_ref = NodeRef::<leptos::html::Span>::new();
     let counterexample_valid = RwSignal::new(true);
 
-    let checkboxes_clone = new_object_checkboxes;
-    let machine_clone = machine;
-    let counterexample_valid_clone = counterexample_valid;
-    let new_object_name_clone = new_object_name;
-
-    Effect::new(move |_| {
-        let checkboxes = checkboxes_clone.get();
-        let object_name = new_object_name_clone.get();
-        let conclusion: BitSet = machine_clone.with(|m| match &m.state {
+    // A counterexample is only one if it misses part of the conclusion.
+    let conclusion_fully_selected = move || {
+        let conclusion: BitSet = machine.with(|m| match &m.state {
             ExplorationState::ValidatingImplication {
                 premise,
                 conclusion,
@@ -115,16 +112,15 @@ pub fn ExplorationComp() -> impl IntoView {
             _ => BitSet::new(),
         });
 
-        let mut selected = BitSet::new();
-        for (i, cb) in checkboxes.iter().enumerate() {
-            if cb.get() {
-                selected.insert(i);
-            }
-        }
+        let checkboxes = new_object_checkboxes.get();
+        conclusion
+            .iter()
+            .all(|i| checkboxes.get(i).is_some_and(|cb| cb.get()))
+    };
 
-        let all_conclusion_selected = conclusion.iter().all(|i| selected.contains(i));
-        let is_valid = !all_conclusion_selected && !object_name.trim().is_empty();
-        counterexample_valid_clone.set(is_valid);
+    Effect::new(move |_| {
+        let named = !new_object_name.get().trim().is_empty();
+        counterexample_valid.set(named && !conclusion_fully_selected());
     });
 
     let attr_len = context.with_untracked(|ctx| ctx.attributes.len());
@@ -192,28 +188,15 @@ pub fn ExplorationComp() -> impl IntoView {
     };
 
     let handle_submit = move |_| {
-        let conclusion: BitSet = machine.with_untracked(|m| match &m.state {
-            ExplorationState::ValidatingImplication {
-                premise,
-                conclusion,
-            }
-            | ExplorationState::AwaitingCounterexample {
-                premise,
-                conclusion,
-            } => conclusion.difference(premise).collect(),
-            _ => BitSet::new(),
-        });
+        if conclusion_fully_selected() {
+            return;
+        }
 
         let mut attribute_set = BitSet::new();
         for (i, checkbox) in new_object_checkboxes.get_untracked().iter().enumerate() {
             if checkbox.get_untracked() {
                 attribute_set.insert(i);
             }
-        }
-
-        let all_conclusion_selected = conclusion.iter().all(|i| attribute_set.contains(i));
-        if all_conclusion_selected {
-            return;
         }
 
         let object_name = new_object_name.get_untracked();
@@ -242,38 +225,32 @@ pub fn ExplorationComp() -> impl IntoView {
         scroll_to_bottom(context_scroll_ref);
     };
 
-    let _handle_reset = move |_: leptos::ev::MouseEvent| {
-        machine.update(|m| m.reset());
-        is_initialized.set(false);
+    // The implication currently on the table, rendered once and reused by the
+    // question, the counterexample prompt and the validation checks.
+    let premise_text = Signal::derive(move || {
+        machine.with(|m| context.with(|ctx| format_set(&m.temp_set, &ctx.attributes)))
+    });
+    let conclusion_text = Signal::derive(move || {
+        machine.with(|m| {
+            context.with(|ctx| {
+                let conclusion: BitSet = m.temp_hull.difference(&m.temp_set).collect();
+                format_set(&conclusion, &ctx.attributes)
+            })
+        })
+    });
 
-        let context_clone = context;
-        machine.update(|m| {
-            let _ = m.process_input(move || context_clone.get_untracked(), ExplorationInput::Start);
-        });
-
-        let state = machine.with_untracked(|m| m.state.clone());
-        match state {
-            ExplorationState::Finished => view_state.set(ViewState::Finished),
-            ExplorationState::ValidatingImplication { .. } => view_state.set(ViewState::Validating),
-            ExplorationState::AwaitingCounterexample { .. } => {
-                view_state.set(ViewState::Counterexample)
-            }
-            _ => {}
-        }
-    };
+    let size = Signal::derive(move || {
+        context.with(|ctx| context_size(ctx.objects.len(), ctx.attributes.len()))
+    });
+    let implication_count =
+        Signal::derive(move || count(machine.with(|m| m.basis.len()), "implication"));
 
     view! {
-        <div class="flex flex-col h-[calc(100vh-7rem)] gap-6">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0 overflow-hidden">
-                <div class="bg-white rounded-lg border border-dhbw-gray-25 overflow-hidden flex flex-col">
-                    <div class="bg-dhbw-gray-25 px-4 py-2 border-b border-dhbw-gray-25 flex-shrink-0">
-                        <span class="text-dhbw-gray font-medium">Current Context</span>
-                        <span class="text-dhbw-gray-50 text-sm ml-2">
-                            {move || format!("({} objects)", context.with(|ctx| ctx.objects.len()))}
-                        </span>
-                    </div>
-                    <div node_ref=context_scroll_ref class="overflow-auto flex-1">
-                        <table class="border-collapse">
+        <div class="flex h-[calc(100vh-7rem)] flex-col gap-6">
+            <div class="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden lg:grid-cols-2">
+                <Panel title=|| "Current Context" meta=size class="min-h-0">
+                    <div node_ref=context_scroll_ref class="flex-1 overflow-auto p-3">
+                        <table class="border-collapse text-sm">
                             <tbody>
                                 <tr>
                                     <td class="p-1"></td>
@@ -282,7 +259,7 @@ pub fn ExplorationComp() -> impl IntoView {
                                         key=|attr| attr.clone()
                                         children=|attr| {
                                             view! {
-                                                <td class="p-1 text-center text-dhbw-gray font-medium border border-dhbw-gray-25 bg-gray-100">{attr}</td>
+                                                <td class="border border-dhbw-gray-25 bg-gray-50 p-1 text-center font-medium text-dhbw-gray">{attr}</td>
                                             }
                                         }
                                     />
@@ -309,11 +286,12 @@ pub fn ExplorationComp() -> impl IntoView {
                                             .collect();
                                             Some(view! {
                                             <tr>
-                                                <td class="p-1 border border-dhbw-gray-25 bg-gray-100">
+                                                <td class="border border-dhbw-red-50 bg-dhbw-red/5 p-1">
                                                     <span
                                                         node_ref=new_object_input_ref
                                                         contenteditable=true
-                                                        class="px-1 text-sm cursor-text hover:bg-gray-50 block outline-none"
+                                                        data-placeholder="new object"
+                                                        class="block cursor-text px-1 text-dhbw-gray outline-none"
                                                         on:input=move |ev| {
                                                             let target = ev.target().unwrap();
                                                             let span: web_sys::HtmlElement = target.unchecked_into();
@@ -327,7 +305,7 @@ pub fn ExplorationComp() -> impl IntoView {
                                                     key=|item| item.0
                                                     children=|(_idx, checkbox, is_disabled)| {
                                                         view! {
-                                                            <td class="p-1 text-center border border-dhbw-gray-25 bg-white">
+                                                            <td class="border border-dhbw-red-50 bg-dhbw-red/5 p-1 text-center">
                                                                 <input
                                                                     type="checkbox"
                                                                     checked=checkbox.get()
@@ -336,7 +314,7 @@ pub fn ExplorationComp() -> impl IntoView {
                                                                         let input: web_sys::HtmlInputElement = ev.target().unwrap().unchecked_into();
                                                                         checkbox.set(input.checked());
                                                                     }
-                                                                    class="accent-dhbw-red w-4 h-4"
+                                                                    class="h-4 w-4 accent-dhbw-red"
                                                                 />
                                                             </td>
                                                         }
@@ -351,47 +329,41 @@ pub fn ExplorationComp() -> impl IntoView {
                             </tbody>
                         </table>
                     </div>
-                </div>
+                </Panel>
 
-                <div class="bg-white rounded-lg border border-dhbw-gray-25 overflow-hidden flex flex-col">
-                    <div class="bg-dhbw-gray-25 px-4 py-2 border-b border-dhbw-gray-25 flex-shrink-0">
-                        <span class="text-dhbw-gray font-medium">Discovered Implications</span>
-                        <span class="text-dhbw-gray-50 text-sm ml-2">
-                            {move || format!("({})", machine.with(|m| m.basis.len()))}
-                        </span>
-                    </div>
-                    <div node_ref=implications_scroll_ref class="overflow-auto flex-1">
+                <Panel title=|| "Discovered Implications" meta=implication_count class="min-h-0">
+                    <div node_ref=implications_scroll_ref class="flex-1 overflow-auto">
                         {move || {
                             let basis = machine.with(|m| m.basis.clone());
                             let attrs = context.with(|ctx| ctx.attributes.clone());
 
                             if basis.is_empty() {
                                 view! {
-                                    <div class="p-4 text-dhbw-gray-50 text-sm text-center">
+                                    <p class="p-4 text-center text-sm text-dhbw-gray-50">
                                         No implications discovered yet
-                                    </div>
+                                    </p>
                                 }.into_any()
                             } else {
                                 view! {
-                                    <table class="w-full text-sm">
-                                        <thead class="bg-gray-50 sticky top-0">
-                                            <tr>
-                                                <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium w-16">#</th>
-                                                <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium w-1/2">Premise</th>
-                                                <th class="px-4 py-2 text-center text-dhbw-gray-50 font-medium w-8"></th>
-                                                <th class="px-4 py-2 text-left text-dhbw-gray-50 font-medium w-1/2">Conclusion</th>
+                                    <table class="w-full table-fixed text-sm">
+                                        <thead class="sticky top-0 bg-white">
+                                            <tr class="border-b border-dhbw-gray-25">
+                                                <th class=format!("{TH} w-12")>#</th>
+                                                <th class=format!("{TH} w-1/2")>Premise</th>
+                                                <th class=format!("{TH} w-10")></th>
+                                                <th class=format!("{TH} w-1/2")>Conclusion</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {basis.into_iter().enumerate().map(|(idx, implication)| {
-                                                let premise_str = format_attribute_set(&implication.0, &attrs);
-                                                let conclusion_str = format_attribute_set(&implication.1, &attrs);
+                                                let premise_str = format_set(&implication.0, &attrs);
+                                                let conclusion_str = format_set(&implication.1, &attrs);
                                                 view! {
                                                     <tr class="border-t border-dhbw-gray-25 hover:bg-gray-50">
-                                                        <td class="px-4 py-2 text-dhbw-gray-50 align-top">{idx + 1}</td>
-                                                        <td class="px-4 py-2 text-dhbw-gray font-mono whitespace-normal break-all align-top">{premise_str}</td>
-                                                        <td class="px-4 py-2 text-black text-center align-top">{"→"}</td>
-                                                        <td class="px-4 py-2 text-dhbw-gray font-mono whitespace-normal break-all align-top">{conclusion_str}</td>
+                                                        <td class="px-4 py-2 align-top text-dhbw-gray-50">{idx + 1}</td>
+                                                        <td class=format!("{SET_TEXT} px-4 py-2 align-top")>{premise_str}</td>
+                                                        <td class=ARROW_CELL><Arrow/></td>
+                                                        <td class=format!("{SET_TEXT} px-4 py-2 align-top")>{conclusion_str}</td>
                                                     </tr>
                                                 }
                                             }).collect::<Vec<_>>()}
@@ -401,156 +373,75 @@ pub fn ExplorationComp() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </Panel>
             </div>
 
-            <div class="bg-white rounded-lg border border-dhbw-gray-25 p-4 flex-shrink-0 h-32">
-                {move || {
-                    match view_state.get() {
-                        ViewState::Finished => {
-                            view! {
-                                <div class="flex flex-col h-full justify-between">
-                                    <p class="text-dhbw-gray text-lg font-medium">Exploration finished.</p>
-                                    <p class="text-dhbw-gray">
-                                        {format!("{} implication(s) discovered.", machine.with(|m| m.basis.len()))}
-                                    </p>
-                                </div>
-                            }.into_any()
-                        }
-                        ViewState::Counterexample => {
-                            view! {
-                                <div class="flex flex-col h-full justify-between">
-                                    <p class="text-dhbw-gray">Provide a counterexample to:{" "}
-                                        <div class="flex items-center text-dhbw-gray font-mono mb-2">
-                                            {move || {
-                                                machine.with(|m| {
-                                                    context.with(|ctx| {
-                                                        let premise: Vec<String> = m.temp_set.iter()
-                                                            .filter(|&i| i < ctx.attributes.len())
-                                                            .map(|i| ctx.attributes[i].clone())
-                                                            .collect();
-                                                        format!("{{{}}}", premise.join(", "))
-                                                    })
-                                                })
-                                            }}
-                                            <span class="text-black px-2">{"→"}</span>
-                                            {move || {
-                                                machine.with(|m| {
-                                                    context.with(|ctx| {
-                                                        let conclusion: Vec<String> = m.temp_hull.difference(&m.temp_set)
-                                                        .filter(|&i| i < ctx.attributes.len())
-                                                        .map(|i| ctx.attributes[i].clone())
-                                                        .collect();
-                                                    format!("{{{}}}", conclusion.join(", "))
-                                                })
-                                            })
-                                        }}</div>
-                                    </p>
-                                    <div class="h-6 flex items-center">
-                                        {move || {
-                                            if !counterexample_valid.get() {
-                                                let name_empty = new_object_name.get().trim().is_empty();
-                                                let conclusion_selected = {
-                                                    let checkboxes = new_object_checkboxes.get();
-                                                    let conclusion: BitSet = machine.with(|m| {
-                                                        match &m.state {
-                                                            ExplorationState::ValidatingImplication { premise, conclusion }
-                                                            | ExplorationState::AwaitingCounterexample { premise, conclusion } => {
-                                                                conclusion.difference(premise).collect()
-                                                            }
-                                                            _ => BitSet::new(),
-                                                        }
-                                                    });
-                                                    let mut selected = BitSet::new();
-                                                    for (i, cb) in checkboxes.iter().enumerate() {
-                                                        if cb.get() {
-                                                            selected.insert(i);
-                                                        }
-                                                    }
-                                                    conclusion.iter().all(|i| selected.contains(i))
-                                                };
-
-                                                let mut messages = Vec::new();
-                                                if name_empty {
-                                                    messages.push("Enter a name.");
-                                                }
-                                                if conclusion_selected {
-                                                    messages.push("Uncheck a conclusion attribute.");
-                                                }
-
-                                                Some(view! {
-                                                    <p class="text-dhbw-red text-sm">
-                                                        {messages.join(" ")}
-                                                    </p>
-                                                }.into_any())
-                                            } else {
-                                                None
-                                            }
-                                        }}
+            {move || {
+                match view_state.get() {
+                    ViewState::Finished => {
+                        view! {
+                            <Panel title=|| "Exploration finished" class="flex-shrink-0">
+                                <p class="p-4 text-sm text-dhbw-gray">
+                                    {move || format!(
+                                        "The canonical basis of the explored context contains {}.",
+                                        implication_count.get(),
+                                    )}
+                                </p>
+                            </Panel>
+                        }.into_any()
+                    }
+                    ViewState::Counterexample => {
+                        view! {
+                            <Panel title=|| "Provide a counterexample to this implication" class="max-h-[45vh] flex-shrink-0">
+                                <div class="flex min-h-0 flex-col gap-3 p-4">
+                                    <div class="min-h-0 flex-1 overflow-auto rounded-md border border-dhbw-gray-25 bg-gray-50 px-3 py-2">
+                                        <Implication premise=premise_text conclusion=conclusion_text/>
                                     </div>
-                                    <div class="flex gap-3">
+                                    <div class="flex flex-shrink-0 flex-wrap items-center gap-3">
                                         <button
                                             on:click=handle_submit
                                             disabled=move || !counterexample_valid.get()
-                                            class="px-4 py-2 rounded text-sm text-white disabled:bg-dhbw-gray-25 disabled:text-dhbw-gray-50"
-                                            class:bg-dhbw-red=move || counterexample_valid.get()
-                                            class:hover:bg-red-700=move || counterexample_valid.get()
+                                            class=BTN_PRIMARY
                                         >
                                             Accept
                                         </button>
+                                        <p class="text-sm text-dhbw-red">
+                                            {move || {
+                                                if counterexample_valid.get() {
+                                                    return String::new();
+                                                }
+                                                let mut messages = Vec::new();
+                                                if new_object_name.get().trim().is_empty() {
+                                                    messages.push("Name the new object.");
+                                                }
+                                                if conclusion_fully_selected() {
+                                                    messages.push("Leave at least one conclusion attribute unchecked.");
+                                                }
+                                                messages.join(" ")
+                                            }}
+                                        </p>
                                     </div>
                                 </div>
-                            }.into_any()
-                        }
-                        ViewState::Validating => {
-                            view! {
-                                <div class="flex flex-col h-full justify-between">
-                                    <p class="text-dhbw-gray">Is the following implication valid?</p>
-                                    <div class="flex items-center text-dhbw-gray font-mono">
-                                        {move || {
-                                            machine.with(|m| {
-                                                context.with(|ctx| {
-                                                    let premise: Vec<String> = m.temp_set.iter()
-                                                        .filter(|&i| i < ctx.attributes.len())
-                                                        .map(|i| ctx.attributes[i].clone())
-                                                        .collect();
-                                                    format!("{{{}}}", premise.join(", "))
-                                                })
-                                            })
-                                        }}
-                                        <span class="text-black px-2">{"→"}</span>
-                                        {move || {
-                                            machine.with(|m| {
-                                                context.with(|ctx| {
-                                                    let conclusion: Vec<String> = m.temp_hull.difference(&m.temp_set)
-                                                        .filter(|&i| i < ctx.attributes.len())
-                                                        .map(|i| ctx.attributes[i].clone())
-                                                        .collect();
-                                                    format!("{{{}}}", conclusion.join(", "))
-                                                })
-                                            })
-                                        }}
-                                    </div>
-                                    <div class="flex gap-3">
-                                        <button
-                                            on:click=handle_yes
-                                            class="px-4 py-2 bg-dhbw-red text-white rounded hover:bg-red-700 text-sm"
-                                        >
-                                            Yes
-                                        </button>
-                                        <button
-                                            on:click=handle_no
-                                            class="px-4 py-2 bg-dhbw-gray/5 border border-dhbw-gray-25 rounded hover:bg-dhbw-gray/10 text-dhbw-gray text-sm"
-                                        >
-                                            No
-                                        </button>
-                                    </div>
-                                </div>
-                            }.into_any()
-                        }
+                            </Panel>
+                        }.into_any()
                     }
-                }}
-            </div>
+                    ViewState::Validating => {
+                        view! {
+                            <Panel title=|| "Is the following implication valid?" class="max-h-[45vh] flex-shrink-0">
+                                <div class="flex min-h-0 flex-col gap-3 p-4">
+                                    <div class="min-h-0 flex-1 overflow-auto rounded-md border border-dhbw-gray-25 bg-gray-50 px-3 py-2">
+                                        <Implication premise=premise_text conclusion=conclusion_text/>
+                                    </div>
+                                    <div class="flex flex-shrink-0 gap-3">
+                                        <button on:click=handle_yes class=BTN_PRIMARY>Yes</button>
+                                        <button on:click=handle_no class=BTN_SECONDARY>No</button>
+                                    </div>
+                                </div>
+                            </Panel>
+                        }.into_any()
+                    }
+                }
+            }}
         </div>
     }
 }

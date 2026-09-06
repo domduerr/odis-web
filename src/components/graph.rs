@@ -7,7 +7,9 @@ use std::rc::Rc;
 use crate::components::{
     svg::{edge::EdgeComp, node::NodeComp},
     svg_download::SvgDownloadComp,
+    ui::{Panel, CONTROL_LABEL, INPUT, SVG_FONT},
 };
+use crate::core::formatters::count;
 use crate::core::layout_math::{dimdraw_drawing, dimflux_drawing, sugiyama_drawing};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -99,7 +101,7 @@ pub fn GraphComp(
     context: FormalContext<String>,
     layout_algorithm: RwSignal<LayoutAlgorithm>,
 ) -> impl IntoView {
-    let _concept_count = concepts.len();
+    let concept_count = count(concepts.len(), "concept");
     let object_count = context.objects.len();
     let attribute_count = context.attributes.len();
     let lattice_option = context.concept_lattice();
@@ -327,155 +329,161 @@ pub fn GraphComp(
     });
 
     view! {
-        <div class="flex items-start">
-            <div class="relative">
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    style:width=move || format!("{}px", dimensions.get().width)
-                    style:height=move || format!("{}px", dimensions.get().height)
-                    node_ref=graph_node
-                    class="bg-white"
-                >
-                    <rect
-                        width="100%"
-                        height="100%"
-                        x="0"
-                        y="0"
-                        fill="white"
-                        stroke-width="2"
-                        stroke="#5C697133"
-                    />
-                    {move || {
-                        let current_nodes = nodes.get();
-                        if let Some(off) = offset.get() {
-                            Either::Left(view! {
-                                {
-                                    edges_for_view.iter().map(|edge| {
-                                        let start = current_nodes.iter().position(|x| x.id == edge.0 as usize).unwrap();
-                                        let end = current_nodes.iter().position(|x| x.id == edge.1 as usize).unwrap();
-                                        view! {
-                                            <EdgeComp
-                                                start=(current_nodes[start].x_signal, current_nodes[start].y_signal)
-                                                end=(current_nodes[end].x_signal, current_nodes[end].y_signal)
-                                            />
+        <div class="flex items-start gap-6">
+            <Panel title=|| "Concept Lattice" meta=concept_count class="min-w-0 flex-1">
+                <div class="overflow-auto p-4">
+                    <div class="relative w-fit">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            style:width=move || format!("{}px", dimensions.get().width)
+                            style:height=move || format!("{}px", dimensions.get().height)
+                            node_ref=graph_node
+                            class="bg-white"
+                        >
+                            <rect
+                                width="100%"
+                                height="100%"
+                                x="0"
+                                y="0"
+                                fill="white"
+                                stroke-width="2"
+                                stroke="#5C697133"
+                            />
+                            {move || {
+                                let current_nodes = nodes.get();
+                                if let Some(off) = offset.get() {
+                                    Either::Left(view! {
+                                        {
+                                            edges_for_view.iter().map(|edge| {
+                                                let start = current_nodes.iter().position(|x| x.id == edge.0 as usize).unwrap();
+                                                let end = current_nodes.iter().position(|x| x.id == edge.1 as usize).unwrap();
+                                                view! {
+                                                    <EdgeComp
+                                                        start=(current_nodes[start].x_signal, current_nodes[start].y_signal)
+                                                        end=(current_nodes[end].x_signal, current_nodes[end].y_signal)
+                                                    />
+                                                }
+                                            }).collect_view()
                                         }
-                                    }).collect_view()
+                                        <For
+                                            each=move || {
+                                                let epoch = layout_epoch.get();
+                                                nodes
+                                                    .get()
+                                                    .into_iter()
+                                                    .map(|node| (epoch, node))
+                                                    .collect::<Vec<_>>()
+                                            }
+                                            key=|(layout_epoch, node)| (*layout_epoch, node.id)
+                                            children=move |(_layout_epoch, node)| {
+                                                view! {
+                                                    <NodeComp
+                                                        node=node
+                                                        offset=off
+                                                        dimensions=dimensions.get()
+                                                    />
+                                                }
+                                            }
+                                        />
+                                    })
+                                } else {
+                                    Either::Right(())
                                 }
-                                <For
-                                    each=move || {
-                                        let epoch = layout_epoch.get();
-                                        nodes
-                                            .get()
-                                            .into_iter()
-                                            .map(|node| (epoch, node))
-                                            .collect::<Vec<_>>()
-                                    }
-                                    key=|(layout_epoch, node)| (*layout_epoch, node.id)
-                                    children=move |(_layout_epoch, node)| {
+                            }}
+                            {move || {
+                                if error.is_empty() {
+                                    Either::Left(())
+                                } else {
+                                    Either::Right(
                                         view! {
-                                            <NodeComp
-                                                node=node
-                                                offset=off
-                                                dimensions=dimensions.get()
-                                            />
+                                            <rect width="100%" height="100%" x="0" y="0" fill="white" stroke-width="3" stroke="#E2001A"/>
+                                            <text
+                                                font-size=dimensions.get().font_size as f64 * 1.6
+                                                dy=".35em"
+                                                text-anchor="middle"
+                                                font-family=SVG_FONT
+                                                fill="#E2001A"
+                                                x=dimensions.get().width / 2.0
+                                                y=dimensions.get().height / 2.0
+                                            >{error}</text>
                                         }
-                                    }
-                                />
-                            })
-                        } else {
-                            Either::Right(())
-                        }
-                    }}
-                    {move || {
-                        if error.is_empty() {
-                            Either::Left(())
-                        } else {
-                            Either::Right(
-                                view! {
-                                    <rect width="100%" height="100%" x="0" y="0" fill="white" stroke-width="3" stroke="#E2001A"/>
-                                    <text
-                                        font-size=dimensions.get().font_size as f64 * 1.6
-                                        dy=".35em"
-                                        text-anchor="middle"
-                                        stroke-width="0.3em"
-                                        font-family="monospace"
-                                        x=dimensions.get().height / 2.0
-                                        y=dimensions.get().width / 2.0
-                                    >{error}</text>
+                                    )
                                 }
-                            )
-                        }
-                    }}
-                </svg>
+                            }}
+                        </svg>
 
-                <div
-                    class="absolute top-0 right-0 w-6 h-full cursor-ew-resize hover:bg-dhbw-red-20 transition-colors flex items-center justify-center"
-                    on:mousedown=on_mouse_down_width
-                >
-                    <div class="w-1 h-8 bg-dhbw-gray-30 rounded"></div>
+                        <div
+                            class="absolute top-0 right-0 w-6 h-full cursor-ew-resize hover:bg-dhbw-red/10 transition-colors flex items-center justify-center"
+                            on:mousedown=on_mouse_down_width
+                        >
+                            <div class="w-1 h-8 bg-dhbw-gray-50 rounded"></div>
+                        </div>
+                        <div
+                            class="absolute bottom-0 left-0 w-full h-6 cursor-ns-resize hover:bg-dhbw-red/10 transition-colors flex items-center justify-center"
+                            on:mousedown=on_mouse_down_height
+                        >
+                            <div class="w-8 h-1 bg-dhbw-gray-50 rounded"></div>
+                        </div>
+                        <div
+                            class="absolute bottom-0 right-0 w-8 h-8 cursor-nwse-resize flex items-center justify-center"
+                            on:mousedown=on_mouse_down_corner
+                        >
+                        </div>
+                    </div>
                 </div>
-                <div
-                    class="absolute bottom-0 left-0 w-full h-6 cursor-ns-resize hover:bg-dhbw-red-20 transition-colors flex items-center justify-center"
-                    on:mousedown=on_mouse_down_height
-                >
-                    <div class="w-8 h-1 bg-dhbw-gray-30 rounded"></div>
-                </div>
-                <div
-                    class="absolute bottom-0 right-0 w-8 h-8 cursor-nwse-resize flex items-center justify-center"
-                    on:mousedown=on_mouse_down_corner
-                >
-                </div>
-            </div>
+            </Panel>
 
-            <div class="flex flex-col gap-4 ml-auto min-w-[180px] bg-gray-50 p-4 rounded-lg border border-dhbw-gray-25">
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs text-dhbw-gray-50 uppercase tracking-wide font-medium">Layout</label>
-                    <select
-                        on:change=move |ev| {
-                            let select: web_sys::HtmlSelectElement = ev.target().unwrap().unchecked_into();
-                            let value = select.value();
-                            let algorithm = match value.as_str() {
-                                "Sugiyama" => LayoutAlgorithm::Sugiyama,
-                                "DimFlux" => LayoutAlgorithm::DimFlux,
-                                _ => LayoutAlgorithm::DimDraw,
-                            };
-                            layout_algorithm.set(algorithm);
-                        }
-                        class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm text-dhbw-gray focus:outline-none focus:border-dhbw-red"
-                    >
-                        <option value="DimDraw" selected=move || layout_algorithm.get() == LayoutAlgorithm::DimDraw>DimDraw</option>
-                        <option value="DimFlux" selected=move || layout_algorithm.get() == LayoutAlgorithm::DimFlux>DimFlux</option>
-                        <option value="Sugiyama" selected=move || layout_algorithm.get() == LayoutAlgorithm::Sugiyama>Sugiyama</option>
-                    </select>
+            <Panel title=|| "Options" class="w-56 shrink-0">
+                <div class="flex flex-col gap-4 p-4">
+                    <div class="flex flex-col gap-1">
+                        <label class=CONTROL_LABEL>Layout</label>
+                        <select
+                            on:change=move |ev| {
+                                let select: web_sys::HtmlSelectElement = ev.target().unwrap().unchecked_into();
+                                let value = select.value();
+                                let algorithm = match value.as_str() {
+                                    "Sugiyama" => LayoutAlgorithm::Sugiyama,
+                                    "DimFlux" => LayoutAlgorithm::DimFlux,
+                                    _ => LayoutAlgorithm::DimDraw,
+                                };
+                                layout_algorithm.set(algorithm);
+                            }
+                            class=INPUT
+                        >
+                            <option value="DimDraw" selected=move || layout_algorithm.get() == LayoutAlgorithm::DimDraw>DimDraw</option>
+                            <option value="DimFlux" selected=move || layout_algorithm.get() == LayoutAlgorithm::DimFlux>DimFlux</option>
+                            <option value="Sugiyama" selected=move || layout_algorithm.get() == LayoutAlgorithm::Sugiyama>Sugiyama</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class=CONTROL_LABEL>Width</label>
+                        <input
+                            type="number"
+                            node_ref=width_input_ref
+                            value="600"
+                            min="200"
+                            max="2000"
+                            on:change=on_width_change
+                            class=INPUT
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class=CONTROL_LABEL>Height</label>
+                        <input
+                            type="number"
+                            node_ref=height_input_ref
+                            value="600"
+                            min="200"
+                            max="2000"
+                            on:change=on_height_change
+                            class=INPUT
+                        />
+                    </div>
+                    <div class="mt-2">
+                        <SvgDownloadComp node_ref=graph_node/>
+                    </div>
                 </div>
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs text-dhbw-gray-50 uppercase tracking-wide font-medium">Width</label>
-                    <input
-                        type="number"
-                        node_ref=width_input_ref
-                        value="600"
-                        min="200"
-                        max="2000"
-                        on:change=on_width_change
-                        class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm text-dhbw-gray focus:outline-none focus:border-dhbw-red"
-                    />
-                </div>
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs text-dhbw-gray-50 uppercase tracking-wide font-medium">Height</label>
-                    <input
-                        type="number"
-                        node_ref=height_input_ref
-                        value="600"
-                        min="200"
-                        max="2000"
-                        on:change=on_height_change
-                        class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm text-dhbw-gray focus:outline-none focus:border-dhbw-red"
-                    />
-                </div>
-                <div class="mt-2">
-                    <SvgDownloadComp node_ref=graph_node/>
-                </div>
-            </div>
+            </Panel>
         </div>
     }
 }

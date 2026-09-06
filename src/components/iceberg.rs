@@ -10,6 +10,8 @@ use odis::{
 use crate::components::graph::{Dimensions, LayoutAlgorithm, Node};
 use crate::components::svg::{edge::EdgeComp, node::NodeComp};
 use crate::components::svg_download::SvgDownloadComp;
+use crate::components::ui::{Panel, CONTROL_LABEL, INPUT};
+use crate::core::formatters::count;
 
 // ── Label mode for the text shown below each node ─────────────────────────────
 
@@ -352,351 +354,353 @@ pub fn IcebergView() -> impl IntoView {
         up_handle.remove();
     });
 
+    let concept_count =
+        Signal::derive(move || count(iceberg.with(|ice| ice.poset.nodes.len()), "concept"));
+
     view! {
-        <div class="flex items-start">
-            // ── Canvas + drag handles ─────────────────────────────────────────
-            <div class="relative">
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    style:width=move || format!("{}px", dimensions.get().width)
-                    style:height=move || format!("{}px", dimensions.get().height)
-                    node_ref=svg_ref
-                    class="bg-white"
-                >
-                    <rect width="100%" height="100%" x="0" y="0"
-                        fill="white" stroke="#5C697133" stroke-width="2"/>
+        <div class="flex items-start gap-6">
+            <Panel title=|| "Iceberg Lattice" meta=concept_count class="min-w-0 flex-1">
+                <div class="overflow-auto p-4">
+                // ── Canvas + drag handles ─────────────────────────────────────────
+                    <div class="relative w-fit">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            style:width=move || format!("{}px", dimensions.get().width)
+                            style:height=move || format!("{}px", dimensions.get().height)
+                            node_ref=svg_ref
+                            class="bg-white"
+                        >
+                            <rect width="100%" height="100%" x="0" y="0"
+                                fill="white" stroke="#5C697133" stroke-width="2"/>
 
-                    {move || {
-                        let current_nodes = nodes.get();
-                        let dims = dimensions.get();
+                            {move || {
+                                let current_nodes = nodes.get();
+                                let dims = dimensions.get();
 
-                        if let Some(off) = offset.get() {
-                            // Read edges UNTRACKED: edges_signal is always updated before
-                            // nodes (level-1 vs level-2 from iceberg), so by the time this
-                            // closure fires (due to `nodes` change) the edges are already
-                            // current.  Subscribing to edges_signal here would cause the
-                            // closure to run a second time with *old* current_nodes, creating
-                            // EdgeComps that hold soon-to-be-disposed x_signal/y_signal
-                            // references → disposed-signal panic when NodeComp init fires
-                            // node.x_signal.set() and the queued render effect reads stale
-                            // signals.
-                            let edges = edges_signal.get_untracked();
-                            let n = current_nodes.len();
+                                if let Some(off) = offset.get() {
+                                    // Read edges UNTRACKED: edges_signal is always updated before
+                                    // nodes (level-1 vs level-2 from iceberg), so by the time this
+                                    // closure fires (due to `nodes` change) the edges are already
+                                    // current.  Subscribing to edges_signal here would cause the
+                                    // closure to run a second time with *old* current_nodes, creating
+                                    // EdgeComps that hold soon-to-be-disposed x_signal/y_signal
+                                    // references → disposed-signal panic when NodeComp init fires
+                                    // node.x_signal.set() and the queued render effect reads stale
+                                    // signals.
+                                    let edges = edges_signal.get_untracked();
+                                    let n = current_nodes.len();
 
-                            // Edges — reactive to x_signal/y_signal via EdgeComp
-                            let edges_view = edges.iter().map(|&(u, v)| {
-                                let u = u as usize;
-                                let v = v as usize;
-                                if u < n && v < n {
-                                    view! {
-                                        <EdgeComp
-                                            start=(current_nodes[u].x_signal, current_nodes[u].y_signal)
-                                            end=(current_nodes[v].x_signal, current_nodes[v].y_signal)
-                                        />
-                                    }
-                                } else {
-                                    view! {
-                                        <EdgeComp
-                                            start=(RwSignal::new(0.0), RwSignal::new(0.0))
-                                            end=(RwSignal::new(0.0), RwSignal::new(0.0))
-                                        />
-                                    }
-                                }
-                            }).collect::<Vec<_>>();
-
-                            // Draggable nodes (attr label above; no below label in NodeComp)
-                            // Keyed by (layout_epoch, id) so remounting on layout change.
-                            let epoch_snap = layout_epoch.get();
-                            let node_list = current_nodes.clone();
-
-                            // Below labels — separate reactive layer.
-                            // Uses x_signal/y_signal for position (follows drag).
-                            // Inner closures read label_mode + iceberg reactively,
-                            // so they update on label_mode change without remounting nodes.
-                            let radius = dims.radius;
-                            let font_size = dims.font_size;
-                            let below_labels_view = current_nodes.iter().enumerate().map(|(i, node)| {
-                                let x_sig = node.x_signal;
-                                let y_sig = node.y_signal;
-                                view! {
-                                    <g>
-                                        // White outline pass
-                                        <text
-                                            font-size=font_size dy=".35em" text-anchor="middle"
-                                            stroke="white" stroke-width="0.3em" font-family="monospace"
-                                            x=move || x_sig.get()
-                                            y=move || y_sig.get() + radius * 2.8
-                                        >
-                                            {move || {
-                                                let mode = label_mode.get();
-                                                let t = match mode {
-                                                    LabelMode::SupportAbsolute => {
-                                                        support_signal.with(|s| s.get(i).map(|v| v.to_string()).unwrap_or_default())
-                                                    }
-                                                    LabelMode::SupportRelative => {
-                                                        let s = support_signal.with(|v| v.get(i).copied().unwrap_or(0));
-                                                        let total = total_signal.get();
-                                                        if total > 0 { format!("{:.0}%", s as f64 * 100.0 / total as f64) } else { "0%".to_string() }
-                                                    }
-                                                    LabelMode::Objects => {
-                                                        let extents = extents_signal.get();
-                                                        let edge_list = edges_signal.get_untracked();
-                                                        let objs = context.with_untracked(|ctx| ctx.objects.clone());
-                                                        // Reduced labeling: only show objects not in any
-                                                        // directly lower (more specific) node's extent.
-                                                        // (u, v) means u ≺ v, so children of i are all u where (u, i) is an edge.
-                                                        if let Some(ext) = extents.get(i) {
-                                                            let mut reduced = ext.clone();
-                                                            for &(u, v) in &edge_list {
-                                                                if v as usize == i
-                                                                    && let Some(child_ext) =
-                                                                        extents.get(u as usize)
-                                                                {
-                                                                    reduced.difference_with(child_ext);
-                                                                }
-                                                            }
-
-                                                            obj_label_str(&reduced, &objs)
-                                                        } else {
-                                                            String::new()
-                                                        }
-                                                    }
-                                                };
-                                                "0".repeat(t.len())
-                                            }}
-                                        </text>
-                                        // Fill pass
-                                        <text
-                                            font-size=font_size dy=".35em" text-anchor="middle"
-                                            fill="black" font-family="monospace"
-                                            x=move || x_sig.get()
-                                            y=move || y_sig.get() + radius * 2.8
-                                        >
-                                            {move || {
-                                                let mode = label_mode.get();
-                                                match mode {
-                                                    LabelMode::SupportAbsolute => {
-                                                        support_signal.with(|s| s.get(i).map(|v| v.to_string()).unwrap_or_default())
-                                                    }
-                                                    LabelMode::SupportRelative => {
-                                                        let s = support_signal.with(|v| v.get(i).copied().unwrap_or(0));
-                                                        let total = total_signal.get();
-                                                        if total > 0 { format!("{:.0}%", s as f64 * 100.0 / total as f64) } else { "0%".to_string() }
-                                                    }
-                                                    LabelMode::Objects => {
-                                                        let extents = extents_signal.get();
-                                                        let edge_list = edges_signal.get_untracked();
-                                                        let objs = context.with_untracked(|ctx| ctx.objects.clone());
-                                                        if let Some(ext) = extents.get(i) {
-                                                            let mut reduced = ext.clone();
-                                                            for &(u, v) in &edge_list {
-                                                                if v as usize == i
-                                                                    && let Some(child_ext) =
-                                                                        extents.get(u as usize)
-                                                                {
-                                                                    reduced.difference_with(child_ext);
-                                                                }
-                                                            }
-                                                            obj_label_str(&reduced, &objs)
-                                                        } else {
-                                                            String::new()
-                                                        }
-                                                    }
-                                                }
-                                            }}
-                                        </text>
-                                    </g>
-                                }
-                            }).collect::<Vec<_>>();
-
-                            Either::Left(view! {
-                                {edges_view}
-                                <For
-                                    each=move || {
-                                        node_list.clone().into_iter()
-                                            .map(move |n| (epoch_snap, n))
-                                            .collect::<Vec<_>>()
-                                    }
-                                    key=|(epoch, n)| (*epoch, n.id)
-                                    children=move |(_epoch, node)| {
-                                        view! {
-                                            <NodeComp node=node offset=off dimensions=dims.clone()/>
+                                    // Edges — reactive to x_signal/y_signal via EdgeComp
+                                    let edges_view = edges.iter().map(|&(u, v)| {
+                                        let u = u as usize;
+                                        let v = v as usize;
+                                        if u < n && v < n {
+                                            view! {
+                                                <EdgeComp
+                                                    start=(current_nodes[u].x_signal, current_nodes[u].y_signal)
+                                                    end=(current_nodes[v].x_signal, current_nodes[v].y_signal)
+                                                />
+                                            }
+                                        } else {
+                                            view! {
+                                                <EdgeComp
+                                                    start=(RwSignal::new(0.0), RwSignal::new(0.0))
+                                                    end=(RwSignal::new(0.0), RwSignal::new(0.0))
+                                                />
+                                            }
                                         }
-                                    }
-                                />
-                                {below_labels_view}
-                            })
-                        } else {
-                            Either::Right(())
-                        }
-                    }}
-                </svg>
+                                    }).collect::<Vec<_>>();
 
-                // Right drag handle (resize width)
-                <div
-                    class="absolute top-0 right-0 w-6 h-full cursor-ew-resize \
-                           hover:bg-dhbw-red-20 transition-colors flex items-center justify-center"
-                    on:mousedown=on_mouse_down_width
-                >
-                    <div class="w-1 h-8 bg-dhbw-gray-30 rounded"></div>
-                </div>
-                // Bottom drag handle (resize height)
-                <div
-                    class="absolute bottom-0 left-0 w-full h-6 cursor-ns-resize \
-                           hover:bg-dhbw-red-20 transition-colors flex items-center justify-center"
-                    on:mousedown=on_mouse_down_height
-                >
-                    <div class="w-8 h-1 bg-dhbw-gray-30 rounded"></div>
-                </div>
-                // Corner drag handle
-                <div
-                    class="absolute bottom-0 right-0 w-8 h-8 cursor-nwse-resize"
-                    on:mousedown=on_mouse_down_corner
-                />
-            </div>
+                                    // Draggable nodes (attr label above; no below label in NodeComp)
+                                    // Keyed by (layout_epoch, id) so remounting on layout change.
+                                    let epoch_snap = layout_epoch.get();
+                                    let node_list = current_nodes.clone();
 
-            // ── Right sidebar (ml-auto → right-justified) ─────────────────────
-            <div class="flex flex-col gap-4 ml-auto min-w-[180px] bg-gray-50 p-4 rounded-lg border border-dhbw-gray-25">
+                                    // Below labels — separate reactive layer.
+                                    // Uses x_signal/y_signal for position (follows drag).
+                                    // Inner closures read label_mode + iceberg reactively,
+                                    // so they update on label_mode change without remounting nodes.
+                                    let radius = dims.radius;
+                                    let font_size = dims.font_size;
+                                    let below_labels_view = current_nodes.iter().enumerate().map(|(i, node)| {
+                                        let x_sig = node.x_signal;
+                                        let y_sig = node.y_signal;
+                                        view! {
+                                            <g>
+                                                // White outline pass
+                                                <text
+                                                    font-size=font_size dy=".35em" text-anchor="middle"
+                                                    stroke="white" stroke-width="0.3em" font-family="monospace"
+                                                    x=move || x_sig.get()
+                                                    y=move || y_sig.get() + radius * 2.8
+                                                >
+                                                    {move || {
+                                                        let mode = label_mode.get();
+                                                        let t = match mode {
+                                                            LabelMode::SupportAbsolute => {
+                                                                support_signal.with(|s| s.get(i).map(|v| v.to_string()).unwrap_or_default())
+                                                            }
+                                                            LabelMode::SupportRelative => {
+                                                                let s = support_signal.with(|v| v.get(i).copied().unwrap_or(0));
+                                                                let total = total_signal.get();
+                                                                if total > 0 { format!("{:.0}%", s as f64 * 100.0 / total as f64) } else { "0%".to_string() }
+                                                            }
+                                                            LabelMode::Objects => {
+                                                                let extents = extents_signal.get();
+                                                                let edge_list = edges_signal.get_untracked();
+                                                                let objs = context.with_untracked(|ctx| ctx.objects.clone());
+                                                                // Reduced labeling: only show objects not in any
+                                                                // directly lower (more specific) node's extent.
+                                                                // (u, v) means u ≺ v, so children of i are all u where (u, i) is an edge.
+                                                                if let Some(ext) = extents.get(i) {
+                                                                    let mut reduced = ext.clone();
+                                                                    for &(u, v) in &edge_list {
+                                                                        if v as usize == i
+                                                                            && let Some(child_ext) =
+                                                                                extents.get(u as usize)
+                                                                        {
+                                                                            reduced.difference_with(child_ext);
+                                                                        }
+                                                                    }
 
-                // Min. Support inputs (live update on change — no Apply button)
-                <div class="flex flex-col gap-2">
-                    <label class="text-xs text-dhbw-gray-50 uppercase tracking-wide font-medium">
-                        "Min. Support"
-                    </label>
-                    <div class="flex items-center gap-1">
-                        <input
-                            type="number"
-                            min="0"
-                            prop:max=move || context.with(|ctx| ctx.objects.len().to_string())
-                            prop:value=move || threshold_abs.get().to_string()
-                            on:change=on_abs_change
-                            class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm \
-                                   text-dhbw-gray focus:outline-none focus:border-dhbw-red"
+                                                                    obj_label_str(&reduced, &objs)
+                                                                } else {
+                                                                    String::new()
+                                                                }
+                                                            }
+                                                        };
+                                                        "0".repeat(t.len())
+                                                    }}
+                                                </text>
+                                                // Fill pass
+                                                <text
+                                                    font-size=font_size dy=".35em" text-anchor="middle"
+                                                    fill="black" font-family="monospace"
+                                                    x=move || x_sig.get()
+                                                    y=move || y_sig.get() + radius * 2.8
+                                                >
+                                                    {move || {
+                                                        let mode = label_mode.get();
+                                                        match mode {
+                                                            LabelMode::SupportAbsolute => {
+                                                                support_signal.with(|s| s.get(i).map(|v| v.to_string()).unwrap_or_default())
+                                                            }
+                                                            LabelMode::SupportRelative => {
+                                                                let s = support_signal.with(|v| v.get(i).copied().unwrap_or(0));
+                                                                let total = total_signal.get();
+                                                                if total > 0 { format!("{:.0}%", s as f64 * 100.0 / total as f64) } else { "0%".to_string() }
+                                                            }
+                                                            LabelMode::Objects => {
+                                                                let extents = extents_signal.get();
+                                                                let edge_list = edges_signal.get_untracked();
+                                                                let objs = context.with_untracked(|ctx| ctx.objects.clone());
+                                                                if let Some(ext) = extents.get(i) {
+                                                                    let mut reduced = ext.clone();
+                                                                    for &(u, v) in &edge_list {
+                                                                        if v as usize == i
+                                                                            && let Some(child_ext) =
+                                                                                extents.get(u as usize)
+                                                                        {
+                                                                            reduced.difference_with(child_ext);
+                                                                        }
+                                                                    }
+                                                                    obj_label_str(&reduced, &objs)
+                                                                } else {
+                                                                    String::new()
+                                                                }
+                                                            }
+                                                        }
+                                                    }}
+                                                </text>
+                                            </g>
+                                        }
+                                    }).collect::<Vec<_>>();
+
+                                    Either::Left(view! {
+                                        {edges_view}
+                                        <For
+                                            each=move || {
+                                                node_list.clone().into_iter()
+                                                    .map(move |n| (epoch_snap, n))
+                                                    .collect::<Vec<_>>()
+                                            }
+                                            key=|(epoch, n)| (*epoch, n.id)
+                                            children=move |(_epoch, node)| {
+                                                view! {
+                                                    <NodeComp node=node offset=off dimensions=dims.clone()/>
+                                                }
+                                            }
+                                        />
+                                        {below_labels_view}
+                                    })
+                                } else {
+                                    Either::Right(())
+                                }
+                            }}
+                        </svg>
+
+                        // Right drag handle (resize width)
+                        <div
+                            class="absolute top-0 right-0 w-6 h-full cursor-ew-resize \
+                                   hover:bg-dhbw-red/10 transition-colors flex items-center justify-center"
+                            on:mousedown=on_mouse_down_width
+                        >
+                            <div class="w-1 h-8 bg-dhbw-gray-50 rounded"></div>
+                        </div>
+                        // Bottom drag handle (resize height)
+                        <div
+                            class="absolute bottom-0 left-0 w-full h-6 cursor-ns-resize \
+                                   hover:bg-dhbw-red/10 transition-colors flex items-center justify-center"
+                            on:mousedown=on_mouse_down_height
+                        >
+                            <div class="w-8 h-1 bg-dhbw-gray-50 rounded"></div>
+                        </div>
+                        // Corner drag handle
+                        <div
+                            class="absolute bottom-0 right-0 w-8 h-8 cursor-nwse-resize"
+                            on:mousedown=on_mouse_down_corner
                         />
-                        <span class="text-dhbw-gray-50 text-xs shrink-0">"obj"</span>
                     </div>
-                    <div class="flex items-center gap-1">
-                        <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            prop:value=move || {
-                                let total = context.with(|ctx| ctx.objects.len() as u32);
-                                abs_to_pct_str(threshold_abs.get(), total)
+                </div>
+            </Panel>
+
+            // ── Controls, at the right edge ───────────────────────────────────
+            <Panel title=|| "Options" class="w-56 shrink-0">
+                <div class="flex flex-col gap-4 p-4">
+
+                    // Min. Support inputs (live update on change — no Apply button)
+                    <div class="flex flex-col gap-2">
+                        <label class=CONTROL_LABEL>
+                            "Min. Support"
+                        </label>
+                        <div class="flex items-center gap-1">
+                            <input
+                                type="number"
+                                min="0"
+                                prop:max=move || context.with(|ctx| ctx.objects.len().to_string())
+                                prop:value=move || threshold_abs.get().to_string()
+                                on:change=on_abs_change
+                                class=INPUT
+                            />
+                            <span class="text-dhbw-gray-50 text-xs shrink-0">"obj"</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                prop:value=move || {
+                                    let total = context.with(|ctx| ctx.objects.len() as u32);
+                                    abs_to_pct_str(threshold_abs.get(), total)
+                                }
+                                on:change=on_pct_change
+                                class=INPUT
+                            />
+                            <span class="text-dhbw-gray-50 text-xs shrink-0">"%"</span>
+                        </div>
+                        <span class="text-dhbw-gray-50 text-xs">
+                            {move || {
+                                let applied = threshold_abs.get();
+                                let total = context.with(|ctx| ctx.objects.len());
+                                format!("{applied} of {}", count(total, "object"))
+                            }}
+                        </span>
+                    </div>
+
+                    // Layout selector
+                    <div class="flex flex-col gap-1">
+                        <label class=CONTROL_LABEL>
+                            "Layout"
+                        </label>
+                        <select
+                            on:change=move |ev| {
+                                let sel = ev.target().unwrap().unchecked_into::<web_sys::HtmlSelectElement>();
+                                layout_algorithm.set(match sel.value().as_str() {
+                                    "Sugiyama" => LayoutAlgorithm::Sugiyama,
+                                    "DimFlux" => LayoutAlgorithm::DimFlux,
+                                    _ => LayoutAlgorithm::DimDraw,
+                                });
                             }
-                            on:change=on_pct_change
-                            class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm \
-                                   text-dhbw-gray focus:outline-none focus:border-dhbw-red"
-                        />
-                        <span class="text-dhbw-gray-50 text-xs shrink-0">"%"</span>
+                            class=INPUT
+                        >
+                            <option value="DimDraw"
+                                selected=move || layout_algorithm.get() == LayoutAlgorithm::DimDraw>
+                                "DimDraw"
+                            </option>
+                            <option value="DimFlux"
+                                selected=move || layout_algorithm.get() == LayoutAlgorithm::DimFlux>
+                                "DimFlux"
+                            </option>
+                            <option value="Sugiyama"
+                                selected=move || layout_algorithm.get() == LayoutAlgorithm::Sugiyama>
+                                "Sugiyama"
+                            </option>
+                        </select>
                     </div>
-                    <span class="text-dhbw-gray-50 text-xs">
-                        {move || {
-                            let applied = threshold_abs.get();
-                            let total = context.with(|ctx| ctx.objects.len() as u32);
-                            let n = iceberg.with(|ice| ice.poset.nodes.len());
-                            format!("{applied}/{total} · {n} concepts")
-                        }}
-                    </span>
-                </div>
 
-                // Layout selector
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs text-dhbw-gray-50 uppercase tracking-wide font-medium">
-                        "Layout"
-                    </label>
-                    <select
-                        on:change=move |ev| {
-                            let sel = ev.target().unwrap().unchecked_into::<web_sys::HtmlSelectElement>();
-                            layout_algorithm.set(match sel.value().as_str() {
-                                "Sugiyama" => LayoutAlgorithm::Sugiyama,
-                                "DimFlux" => LayoutAlgorithm::DimFlux,
-                                _ => LayoutAlgorithm::DimDraw,
-                            });
-                        }
-                        class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm \
-                               text-dhbw-gray focus:outline-none focus:border-dhbw-red"
-                    >
-                        <option value="DimDraw"
-                            selected=move || layout_algorithm.get() == LayoutAlgorithm::DimDraw>
-                            "DimDraw"
-                        </option>
-                        <option value="DimFlux"
-                            selected=move || layout_algorithm.get() == LayoutAlgorithm::DimFlux>
-                            "DimFlux"
-                        </option>
-                        <option value="Sugiyama"
-                            selected=move || layout_algorithm.get() == LayoutAlgorithm::Sugiyama>
-                            "Sugiyama"
-                        </option>
-                    </select>
-                </div>
+                    // Below-label selector
+                    <div class="flex flex-col gap-1">
+                        <label class=CONTROL_LABEL>
+                            "Show below"
+                        </label>
+                        <select
+                            on:change=move |ev| {
+                                let sel = ev.target().unwrap().unchecked_into::<web_sys::HtmlSelectElement>();
+                                label_mode.set(match sel.value().as_str() {
+                                    "pct"     => LabelMode::SupportRelative,
+                                    "objects" => LabelMode::Objects,
+                                    _         => LabelMode::SupportAbsolute,
+                                });
+                            }
+                            class=INPUT
+                        >
+                            <option value="abs"
+                                selected=move || label_mode.get() == LabelMode::SupportAbsolute>
+                                "Support (n)"
+                            </option>
+                            <option value="pct"
+                                selected=move || label_mode.get() == LabelMode::SupportRelative>
+                                "Support (%)"
+                            </option>
+                            <option value="objects"
+                                selected=move || label_mode.get() == LabelMode::Objects>
+                                "Objects"
+                            </option>
+                        </select>
+                    </div>
 
-                // Below-label selector
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs text-dhbw-gray-50 uppercase tracking-wide font-medium">
-                        "Show below"
-                    </label>
-                    <select
-                        on:change=move |ev| {
-                            let sel = ev.target().unwrap().unchecked_into::<web_sys::HtmlSelectElement>();
-                            label_mode.set(match sel.value().as_str() {
-                                "pct"     => LabelMode::SupportRelative,
-                                "objects" => LabelMode::Objects,
-                                _         => LabelMode::SupportAbsolute,
-                            });
-                        }
-                        class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm \
-                               text-dhbw-gray focus:outline-none focus:border-dhbw-red"
-                    >
-                        <option value="abs"
-                            selected=move || label_mode.get() == LabelMode::SupportAbsolute>
-                            "Support (n)"
-                        </option>
-                        <option value="pct"
-                            selected=move || label_mode.get() == LabelMode::SupportRelative>
-                            "Support (%)"
-                        </option>
-                        <option value="objects"
-                            selected=move || label_mode.get() == LabelMode::Objects>
-                            "Objects"
-                        </option>
-                    </select>
-                </div>
+                    // Canvas Width
+                    <div class="flex flex-col gap-1">
+                        <label class=CONTROL_LABEL>
+                            "Width"
+                        </label>
+                        <input
+                            type="number" min="200" max="2000" value="600"
+                            node_ref=width_input_ref
+                            on:change=on_width_change
+                            class=INPUT
+                        />
+                    </div>
 
-                // Canvas Width
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs text-dhbw-gray-50 uppercase tracking-wide font-medium">
-                        "Width"
-                    </label>
-                    <input
-                        type="number" min="200" max="2000" value="600"
-                        node_ref=width_input_ref
-                        on:change=on_width_change
-                        class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm \
-                               text-dhbw-gray focus:outline-none focus:border-dhbw-red"
-                    />
-                </div>
+                    // Canvas Height
+                    <div class="flex flex-col gap-1">
+                        <label class=CONTROL_LABEL>
+                            "Height"
+                        </label>
+                        <input
+                            type="number" min="200" max="2000" value="600"
+                            node_ref=height_input_ref
+                            on:change=on_height_change
+                            class=INPUT
+                        />
+                    </div>
 
-                // Canvas Height
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs text-dhbw-gray-50 uppercase tracking-wide font-medium">
-                        "Height"
-                    </label>
-                    <input
-                        type="number" min="200" max="2000" value="600"
-                        node_ref=height_input_ref
-                        on:change=on_height_change
-                        class="w-full px-3 py-2 border border-dhbw-gray-25 rounded text-sm \
-                               text-dhbw-gray focus:outline-none focus:border-dhbw-red"
-                    />
+                    // Save SVG
+                    <div class="mt-2">
+                        <SvgDownloadComp node_ref=svg_ref/>
+                    </div>
                 </div>
-
-                // Save SVG
-                <div class="mt-2">
-                    <SvgDownloadComp node_ref=svg_ref/>
-                </div>
-            </div>
+            </Panel>
         </div>
     }
 }

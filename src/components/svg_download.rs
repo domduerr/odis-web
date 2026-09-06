@@ -1,5 +1,7 @@
-use crate::utils::browser::serialize_and_download_svg;
 use leptos::prelude::*;
+
+use crate::components::ui::BTN_PRIMARY;
+use crate::utils::browser::serialize_and_download_svg;
 
 #[component]
 pub fn SvgDownloadComp(node_ref: NodeRef<leptos::svg::Svg>) -> impl IntoView {
@@ -13,7 +15,7 @@ pub fn SvgDownloadComp(node_ref: NodeRef<leptos::svg::Svg>) -> impl IntoView {
                         leptos::logging::log!("Failed to download SVG: {:?}", e);
                     }
             }
-            class="w-full px-4 py-2 bg-dhbw-red text-white rounded hover:bg-red-700 text-sm font-medium transition-colors"
+            class=format!("{BTN_PRIMARY} w-full")
         >
             "Save SVG"
         </button>

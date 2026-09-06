@@ -5,6 +5,8 @@ use bit_set::BitSet;
 use odis::FormalContext;
 
 use crate::components::context::index_to_column_name;
+use crate::components::ui::{Panel, BTN_ICON, TITLE_INPUT};
+use crate::core::formatters::context_size;
 
 fn render_incidence_cell(
     row_idx: usize,
@@ -16,7 +18,7 @@ fn render_incidence_cell(
 
     let on_toggle = on_toggle.clone();
     view! {
-        <td class="p-1 text-center border border-dhbw-gray-25 bg-white">
+        <td class="border border-dhbw-gray-25 bg-white p-1 text-center">
             <input
                 type="checkbox"
                 checked=initial_checked
@@ -24,7 +26,7 @@ fn render_incidence_cell(
                     let input: web_sys::HtmlInputElement = ev.target().unwrap().unchecked_into();
                     on_toggle(row_idx, col_idx, input.checked());
                 }
-                class="accent-dhbw-red cursor-pointer w-4 h-4"
+                class="h-4 w-4 cursor-pointer accent-dhbw-red"
             />
         </td>
     }
@@ -54,15 +56,15 @@ fn render_object_row(
 
     view! {
         <tr>
-            <td class="p-1 border border-dhbw-gray-25 bg-gray-100">
+            <td class="border border-dhbw-gray-25 bg-gray-50 p-1">
                 <div class="flex items-center gap-1">
                     <button
                         on:click=delete_click
-                        class="text-dhbw-gray hover:text-dhbw-red text-sm font-bold"
-                        title="Delete Object"
-                    >x</button>
+                        class=BTN_ICON
+                        title="Delete object"
+                    >{"\u{00d7}"}</button>
                     <span
-                        class="px-1 text-sm cursor-text hover:bg-gray-50"
+                        class="cursor-text rounded px-1 text-sm font-medium text-dhbw-gray hover:bg-white"
                         contenteditable=true
                         on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                             if ev.key() == "Enter" {
@@ -106,15 +108,15 @@ fn render_attribute_header(
     };
 
     view! {
-        <td class="p-1 border border-dhbw-gray-25 bg-gray-100">
+        <td class="border border-dhbw-gray-25 bg-gray-50 p-1">
             <div class="flex flex-col items-center">
                 <button
                     on:click=delete_click
-                    class="text-dhbw-gray hover:text-dhbw-red text-sm font-bold"
-                    title="Delete Attribute"
-                >x</button>
+                    class=BTN_ICON
+                    title="Delete attribute"
+                >{"\u{00d7}"}</button>
                 <span
-                    class="px-1 text-sm cursor-text hover:bg-gray-50"
+                    class="cursor-text rounded px-1 text-sm font-medium text-dhbw-gray hover:bg-white"
                     contenteditable=true
                     on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                         if ev.key() == "Enter" {
@@ -131,11 +133,11 @@ fn render_attribute_header(
 fn render_add_attribute_button(on_click: impl Fn() + Send + Clone + 'static) -> impl IntoView {
     let on_click = on_click.clone();
     view! {
-        <td class="p-1 border border-dhbw-gray-25 bg-gray-50">
+        <td class="border border-dhbw-gray-25 bg-gray-50 p-1 text-center">
             <button
                 on:click=move |_| on_click()
-                class="text-dhbw-gray hover:text-dhbw-red text-lg font-bold px-2"
-                title="Add Attribute"
+                class=BTN_ICON
+                title="Add attribute"
             >+</button>
         </td>
     }
@@ -145,11 +147,11 @@ fn render_add_object_button(on_click: impl Fn() + Send + Clone + 'static) -> imp
     let on_click = on_click.clone();
     view! {
         <tr>
-            <td class="p-1 border border-dhbw-gray-25 bg-gray-50 text-center">
+            <td class="border border-dhbw-gray-25 bg-gray-50 p-1 text-center">
                 <button
                     on:click=move |_| on_click()
-                    class="text-dhbw-gray hover:text-dhbw-red text-lg font-bold"
-                    title="Add Object"
+                    class=BTN_ICON
+                    title="Add object"
                 >+</button>
             </td>
         </tr>
@@ -226,23 +228,33 @@ pub fn TableComp() -> impl IntoView {
         }
     };
 
+    let size = Signal::derive(move || {
+        let _ = on_context_change.get();
+        context.with_untracked(|ctx| context_size(ctx.objects.len(), ctx.attributes.len()))
+    });
+
+    // The context's name is the panel title, edited in place.
+    let name_field = move || {
+        view! {
+            <input
+                type="text"
+                class=TITLE_INPUT
+                placeholder="Unnamed context"
+                title="Rename the context"
+                prop:value=move || context.with(|ctx| ctx.name.clone())
+                on:input=move |ev| {
+                    let val = event_target_value(&ev);
+                    context.update_untracked(|ctx| ctx.name = val);
+                    on_context_change.update(|v| *v += 1);
+                }
+            />
+        }
+    };
+
     view! {
-        <div class="h-full">
-            <div class="mb-3">
-                <input
-                    type="text"
-                    class="w-full border border-dhbw-gray-25 rounded px-3 py-2 text-sm text-dhbw-gray focus:outline-none focus:border-dhbw-red"
-                    placeholder="Unnamed context"
-                    prop:value=move || context.with(|ctx| ctx.name.clone())
-                    on:input=move |ev| {
-                        let val = event_target_value(&ev);
-                        context.update_untracked(|ctx| ctx.name = val);
-                        on_context_change.update(|v| *v += 1);
-                    }
-                />
-            </div>
-            <div class="overflow-auto">
-                <table class="border-collapse">
+        <Panel title=name_field meta=size>
+        <div class="overflow-auto p-3">
+                <table class="border-collapse text-sm">
                     <tbody>
                         <tr>
                             <td class="p-1"></td>
@@ -294,6 +306,6 @@ pub fn TableComp() -> impl IntoView {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </Panel>
     }
 }

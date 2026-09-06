@@ -1,6 +1,6 @@
 [package]
 name = "odis-web"
-version = "2026.9.0"
+version = "2026.9.1"
 authors = ["Dominik Dürrschnabel", "Armin Strupp"]
 edition = "2024"
 license = "AGPL-3.0-only"
@@ -23,12 +23,13 @@ web-sys = { version = "0.3.77", features = [
     "HtmlAnchorElement",
     "BlobPropertyBag",
     "HtmlSelectElement",
+    "SvgTextContentElement",
 ] }
 leptos-use = { version = "0.15.10", features = ["use_draggable"] }
 wasm-bindgen-futures = "0.4.50"
 # The released crate, so that a standalone checkout — CI included — resolves.
 # Local builds are redirected to the sibling working tree by the [patch] in the
 # parent directory's .cargo/config.toml.
-odis = "2026.9.0"
+odis = "2026.9.1"
 bit-set = "0.8.0"
 rust-sugiyama = "0.3.0"

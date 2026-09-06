@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use odis::FormalContext;
 
+use crate::components::ui::{NAV_ITEM, NAV_ITEM_ACTIVE, NAV_ITEM_IDLE};
 use crate::js_fn;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -28,14 +29,8 @@ fn SidebarItem(
         <button
             on:click=move |_| on_click()
             class=move || {
-                format!(
-                    "w-full text-left px-3 py-2.5 rounded-md text-sm transition-all flex items-center gap-2 {}",
-                    if is_active() {
-                        "bg-dhbw-red text-white font-medium shadow-sm"
-                    } else {
-                        "text-dhbw-gray hover:bg-dhbw-gray/5"
-                    }
-                )
+                let state = if is_active() { NAV_ITEM_ACTIVE } else { NAV_ITEM_IDLE };
+                format!("{NAV_ITEM} {state}")
             }
         >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,6 +58,7 @@ pub fn Sidebar(
     current_view: RwSignal<View>,
     on_context_loaded: impl Fn(Option<FormalContext<String>>) + 'static,
     on_save_context: impl Fn(web_sys::MouseEvent) + 'static,
+    repository_open: RwSignal<bool>,
 ) -> impl IntoView {
     let file_input_element: NodeRef<leptos::html::Input> = NodeRef::new();
     let on_context_loaded_rc = Rc::new(on_context_loaded);
@@ -134,7 +130,7 @@ pub fn Sidebar(
                             }
                         }
                         type="button"
-                        class="w-full text-left px-3 py-2.5 rounded-md text-sm transition-all flex items-center gap-2 text-dhbw-gray hover:bg-dhbw-gray/5"
+                        class=format!("{NAV_ITEM} {NAV_ITEM_IDLE}")
                     >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
@@ -142,8 +138,18 @@ pub fn Sidebar(
                         Load Context
                     </button>
                     <button
+                        on:click=move |_| repository_open.set(true)
+                        type="button"
+                        class=format!("{NAV_ITEM} {NAV_ITEM_IDLE}")
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                        </svg>
+                        FCA Repository
+                    </button>
+                    <button
                         on:click=move |_| on_save_context(web_sys::MouseEvent::new("click").unwrap())
-                        class="w-full text-left px-3 py-2.5 rounded-md text-sm transition-all flex items-center gap-2 text-dhbw-gray hover:bg-dhbw-gray/5"
+                        class=format!("{NAV_ITEM} {NAV_ITEM_IDLE}")
                     >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
